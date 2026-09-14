@@ -1,3 +1,4 @@
-﻿// See https://aka.ms/new-console-template for more information
+﻿using AdapterPattern;
 
-Console.WriteLine("Hello, World!");
+ITarget payment = new Adapter(new LegacyPaymentGateway());
+payment.ProcessPayment(49.99m); //m so it is a decimal instead of a double
