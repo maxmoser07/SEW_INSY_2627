@@ -1,6 +1,52 @@
 @page "/Salary"
+@using System.Net.Http.Json
+@inject HttpClient Http
+
 <h3>Salary</h3>
 
+@if (items is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+        <tr><th>Id</th><th>Name</th><th>Sal</th><th></th></tr>
+        </thead>
+        <tbody>
+        @foreach (var item in items)
+        {
+            <tr>
+                <td>@item.Id</td>
+                <td>@item.Name</td>
+                <td><input type="number" step="0.01" @bind="item.Sal" /></td>
+                <td><button class="btn btn-primary" @onclick="() => SaveAsync(item)">Commit</button></td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@if (!string.IsNullOrEmpty(status))
+{
+    <p>@status</p>
+}
+
 @code {
-    
+    private List<SalDate>? items;
+    private string? status;
+
+    protected override async Task OnInitializedAsync()
+    {
+        items = await Http.GetFromJsonAsync<List<SalDate>>("api/SalDate");
+    }
+
+    private async Task SaveAsync(SalDate item)
+    {
+        var response = await Http.PutAsJsonAsync($"api/SalDate/{item.Id}", item.Sal);
+        status = response.IsSuccessStatusCode
+            ? $"Saved Sal for Id {item.Id}"
+            : $"Failed to save (status {(int)response.StatusCode})";
+    }
 }
