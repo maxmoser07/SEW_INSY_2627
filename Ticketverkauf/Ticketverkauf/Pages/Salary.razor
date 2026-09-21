@@ -41,13 +41,31 @@ else
     protected override async Task OnInitializedAsync()
     {
         items = await Http.GetFromJsonAsync<List<SalDate>>("api/SalDate");
+        if (items is not null)
+        {
+            foreach (var item in items)
+                item.OriginalSal = item.Sal; // remember what we started from
+        }
     }
 
     private async Task SaveAsync(SalDate item)
     {
-        var response = await Http.PutAsJsonAsync($"api/SalDate/{item.Id}", item.Sal);
-        status = response.IsSuccessStatusCode
-            ? $"Saved Sal for Id {item.Id}"
-            : $"Failed to save (status {(int)response.StatusCode})";
+        var response = await Http.PutAsJsonAsync($"api/SalDate/{item.Id}",
+            new { item.Sal, item.OriginalSal });
+
+        if (response.IsSuccessStatusCode)
+        {
+            status = $"Saved Sal for Id {item.Id}";
+            item.OriginalSal = item.Sal; // this is now the current DB value
+        }
+        else if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            status = $"Conflict on Id {item.Id}: someone else changed this row. Reloading...";
+            await OnInitializedAsync(); // refresh with the latest data
+        }
+        else
+        {
+            status = $"Failed to save (status {(int)response.StatusCode})";
+        }
     }
 }
