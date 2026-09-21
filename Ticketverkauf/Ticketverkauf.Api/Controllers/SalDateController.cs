@@ -26,4 +26,25 @@ public class SalDateController : ControllerBase
         await _db.SaveChangesAsync();
         return NoContent();
     }
+    [HttpPut("{id:int}")]
+    public async Task<IActionResult> UpdateSal(int id, [FromBody] SalUpdateRequest request)
+    {
+        var entity = await _db.SalDates.FindAsync(id);
+        if (entity is null) return NotFound();
+
+        // Tell EF what value we assumed was there when we loaded the row
+        _db.Entry(entity).Property(e => e.Sal).OriginalValue = request.OriginalSal;
+        entity.Sal = request.Sal;
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Conflict(new { message = "This row was changed by someone else since you loaded it. Reload and try again." });
+        }
+
+        return NoContent();
+    }
 }
