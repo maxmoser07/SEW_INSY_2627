@@ -11,4 +11,6 @@ public class SalDate
 
     [ConcurrencyCheck]
     public float? Sal { get; set; }
+    
+    public float? OriginalSal { get; set; } // not sent as-is; used to detect conflicts
 }
