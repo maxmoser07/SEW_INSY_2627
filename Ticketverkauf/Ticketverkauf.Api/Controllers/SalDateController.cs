@@ -15,17 +15,7 @@ public class SalDateController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<List<SalDate>>> GetAll()
         => await _db.SalDates.AsNoTracking().ToListAsync();
-
-    [HttpPut("{id:int}")]
-    public async Task<IActionResult> UpdateSal(int id, [FromBody] float? sal)
-    {
-        var entity = await _db.SalDates.FindAsync(id);
-        if (entity is null) return NotFound();
-
-        entity.Sal = sal;
-        await _db.SaveChangesAsync();
-        return NoContent();
-    }
+    
     [HttpPut("{id:int}")]
     public async Task<IActionResult> UpdateSal(int id, [FromBody] SalUpdateRequest request)
     {
