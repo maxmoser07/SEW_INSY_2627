@@ -1,0 +1,15 @@
+/home/max/School/5CHIT/SEWINSY/AdapterPattern/AdapterPattern/bin/Debug/net10.0/AdapterPattern
+/home/max/School/5CHIT/SEWINSY/AdapterPattern/AdapterPattern/bin/Debug/net10.0/AdapterPattern.deps.json
+/home/max/School/5CHIT/SEWINSY/AdapterPattern/AdapterPattern/bin/Debug/net10.0/AdapterPattern.runtimeconfig.json
+/home/max/School/5CHIT/SEWINSY/AdapterPattern/AdapterPattern/bin/Debug/net10.0/AdapterPattern.dll
+/home/max/School/5CHIT/SEWINSY/AdapterPattern/AdapterPattern/bin/Debug/net10.0/AdapterPattern.pdb
+/home/max/School/5CHIT/SEWINSY/AdapterPattern/AdapterPattern/obj/Debug/net10.0/AdapterPattern.GeneratedMSBuildEditorConfig.editorconfig
+/home/max/School/5CHIT/SEWINSY/AdapterPattern/AdapterPattern/obj/Debug/net10.0/AdapterPattern.AssemblyInfoInputs.cache
+/home/max/School/5CHIT/SEWINSY/AdapterPattern/AdapterPattern/obj/Debug/net10.0/AdapterPattern.AssemblyInfo.cs
+/home/max/School/5CHIT/SEWINSY/AdapterPattern/AdapterPattern/obj/Debug/net10.0/AdapterPattern.csproj.CoreCompileInputs.cache
+/home/max/School/5CHIT/SEWINSY/AdapterPattern/AdapterPattern/obj/Debug/net10.0/AdapterPattern.sourcelink.json
+/home/max/School/5CHIT/SEWINSY/AdapterPattern/AdapterPattern/obj/Debug/net10.0/AdapterPattern.dll
+/home/max/School/5CHIT/SEWINSY/AdapterPattern/AdapterPattern/obj/Debug/net10.0/refint/AdapterPattern.dll
+/home/max/School/5CHIT/SEWINSY/AdapterPattern/AdapterPattern/obj/Debug/net10.0/AdapterPattern.pdb
+/home/max/School/5CHIT/SEWINSY/AdapterPattern/AdapterPattern/obj/Debug/net10.0/AdapterPattern.genruntimeconfig.cache
+/home/max/School/5CHIT/SEWINSY/AdapterPattern/AdapterPattern/obj/Debug/net10.0/ref/AdapterPattern.dll

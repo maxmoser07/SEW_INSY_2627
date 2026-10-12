@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ticketverkauf", "Ticketverkauf\Ticketverkauf.csproj", "{0D4E8EF5-4787-4305-9789-1851DB457AA7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ticketverkauf.Api", "Ticketverkauf.Api\Ticketverkauf.Api.csproj", "{61DCD46D-94A6-44E4-9E54-F5F5D1C3CCB0}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0D4E8EF5-4787-4305-9789-1851DB457AA7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0D4E8EF5-4787-4305-9789-1851DB457AA7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0D4E8EF5-4787-4305-9789-1851DB457AA7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0D4E8EF5-4787-4305-9789-1851DB457AA7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{61DCD46D-94A6-44E4-9E54-F5F5D1C3CCB0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{61DCD46D-94A6-44E4-9E54-F5F5D1C3CCB0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{61DCD46D-94A6-44E4-9E54-F5F5D1C3CCB0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{61DCD46D-94A6-44E4-9E54-F5F5D1C3CCB0}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
