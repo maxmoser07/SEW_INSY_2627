@@ -3,250 +3,128 @@
 @inject IGeoStore Store
 @rendermode InteractiveServer
 
-<PageTitle>GeoViz · World Geolocation Graph</PageTitle>
+<PageTitle>GeoViz</PageTitle>
 
-@if (_repo is null)
-{
-    <div class="app">
-        <div class="boot card">
-            <div class="eyebrow"><span class="pulse"></span>Blazor Server · Neo4j</div>
-            <h1>GEOVIZ <span>World Geolocation Graph</span></h1>
+<main>
+    <h1>GeoViz – World Geolocation Graph</h1>
 
-            @if (_loadError is null)
+    @if (_repo is null)
+    {
+        if (_loadError is null)
+        {
+            <p>Connecting to @Store.DisplayName …</p>
+        }
+        else
+        {
+            <p class="notice error">Could not connect to Neo4j: @_loadError</p>
+            <button @onclick="LoadInitialAsync">Retry</button>
+        }
+    }
+    else
+    {
+        <p>
+            @_repo.Continents.Count continents ·
+            @_repo.Countries.Count countries ·
+            @_repo.Cities.Count cities ·
+            @_repo.Landmarks.Count landmarks ·
+            @_repo.Borders.Count borders
+            (@Store.DisplayName)
+        </p>
+
+        <div class="row">
+            <button @onclick="ReloadAsync" disabled="@_busy">Reload</button>
+            <button @onclick="SeedAsync" disabled="@_busy">Seed atlas</button>
+            @if (_confirmClear)
             {
-                <div class="spinner" aria-hidden="true"></div>
-                <p class="boot-text">Connecting to @Store.DisplayName …</p>
+                <span>Delete all atlas data?</span>
+                <button @onclick="ClearAsync" disabled="@_busy">Yes, delete</button>
+                <button @onclick="CloseConfirm">Cancel</button>
             }
             else
             {
-                <h3 class="boot-title">Database unavailable</h3>
-                <p class="boot-error">@_loadError</p>
-                <p class="boot-text">
-                    Make sure the Neo4j server is running and check the connection settings in
-                    <code>appsettings.json</code>.
-                </p>
-                <button class="primary" @onclick="LoadInitialAsync">Retry connection</button>
+                <button @onclick="() => _confirmClear = true" disabled="@_busy">Clear graph</button>
             }
         </div>
-    </div>
-}
-else
-{
-    <div class="app">
-        <header>
-            <div class="brand">
-                <div class="eyebrow"><span class="pulse"></span>Blazor Server · @Store.DisplayName</div>
-                <h1>GEOVIZ <span>World Geolocation Graph</span></h1>
-                <p class="sub">
-                    Live graph from Neo4j · @_repo.Continents.Count continents,
-                    @_repo.Countries.Count countries, @_repo.Cities.Count cities,
-                    @_repo.Landmarks.Count landmarks and @_repo.RelationshipCount relationships
-                </p>
+
+        @if (_notice is not null)
+        {
+            <p class="notice">@_notice <button @onclick="() => _notice = null">OK</button></p>
+        }
+        @if (_loadError is not null)
+        {
+            <p class="notice error">Neo4j: @_loadError <button @onclick="() => _loadError = null">OK</button></p>
+        }
+
+        @if (!HasData)
+        {
+            <p>No data in Neo4j yet.</p>
+            <button @onclick="SeedAsync" disabled="@_busy">Seed world atlas</button>
+        }
+        else
+        {
+            <div class="row">
+                <input type="search" placeholder="Search city, country, landmark…"
+                       value="@_search" @oninput="OnSearchInput" />
+                <button @onclick="ResetFilters">Reset filters</button>
             </div>
-            <div class="stats">
-                <div class="stat"><b>@_repo.Continents.Count</b><span>Continents</span></div>
-                <div class="stat"><b>@_repo.Countries.Count</b><span>Countries</span></div>
-                <div class="stat"><b>@_repo.Cities.Count</b><span>Cities</span></div>
-                <div class="stat"><b>@_repo.Landmarks.Count</b><span>Landmarks</span></div>
-                <div class="stat"><b>@_repo.Borders.Count</b><span>Land borders</span></div>
-            </div>
-        </header>
 
-        <div class="grid">
-            <aside class="card sidebar">
-                <div class="section">
-                    <label class="search">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                             stroke-width="2.2" stroke-linecap="round">
-                            <circle cx="11" cy="11" r="7" />
-                            <path d="m20 20-3.5-3.5" />
-                        </svg>
-                        <input type="search" placeholder="Search city, country, landmark…"
-                               value="@_search" @oninput="OnSearchInput"
-                               autocomplete="off" spellcheck="false" />
-                    </label>
-                </div>
-
-                <div class="section">
-                    <h2>Continents</h2>
-                    <div class="filter-list">
-                        @foreach (var continent in _repo.Continents)
-                        {
-                            var count = _repo.CountriesIn(continent.Code).Count;
-                            <label class="filter-row" style="--c:@GeoPalette.ForContinent(continent.Code)">
-                                <input type="checkbox"
-                                       checked="@_continentFilter.Contains(continent.Code)"
-                                       @onchange="e => ToggleContinent(continent.Code, (bool)e.Value!)" />
-                                <span class="box">
-                                    <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="#08111c"
-                                         stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M2 6.4 4.7 9 10 3.4" />
-                                    </svg>
-                                </span>
-                                <span class="dot"></span>
-                                <span>
-                                    <span>@continent.Name</span><br />
-                                    <span class="loc">@continent.Code</span>
-                                </span>
-                                <span class="meta">@count</span>
-                            </label>
-                        }
-                    </div>
-                </div>
-
-                <div class="section">
-                    <h2>Place types</h2>
-                    <div class="chips">
-                        @foreach (var kind in Kinds)
-                        {
-                            <button type="button" class="chip" style="--c:@KindColor(kind)"
-                                    aria-pressed="@(_kindFilter.Contains(kind) ? "true" : "false")"
-                                    @onclick="() => ToggleKind(kind)">
-                                <span class="dot"></span>@GeoPalette.KindLabel(kind)
-                                <span class="count">@KindCount(kind)</span>
-                            </button>
-                        }
-                    </div>
-                </div>
-
-                <div class="section">
-                    <h2>Relationships</h2>
-                    <label class="switch-row">
-                        <span class="swatch hierarchy"></span>IN_CONTINENT / IN_COUNTRY
-                        <span class="count">@(_repo.Countries.Count + _repo.Cities.Count)</span>
-                        <input type="checkbox" @bind="_showHierarchy" />
-                    </label>
-                    <label class="switch-row">
-                        <span class="swatch borders"></span>BORDERS
-                        <span class="count">@_repo.Borders.Count</span>
-                        <input type="checkbox" @bind="_showBorders" />
-                    </label>
-                    <label class="switch-row">
-                        <span class="swatch near"></span>NEAR
-                        <span class="count">@_repo.Landmarks.Count</span>
-                        <input type="checkbox" @bind="_showNear" />
-                    </label>
-                </div>
-
-                <div class="section">
-                    <h2>Population by continent</h2>
-                    @{
-                        var maxPopulation = Math.Max(1, _repo.Continents.Count == 0
-                            ? 1
-                            : _repo.Continents.Max(c => _repo.PopulationOf(c)));
+            <div class="row">
+                <fieldset>
+                    <legend>Continents</legend>
+                    @foreach (var continent in _repo.Continents)
+                    {
+                        <label>
+                            <input type="checkbox"
+                                   checked="@_continentFilter.Contains(continent.Code)"
+                                   @onchange="e => ToggleContinent(continent.Code, (bool)e.Value!)" />
+                            @continent.Name
+                        </label>
                     }
-                    <div class="payroll">
-                        @foreach (var continent in _repo.Continents)
-                        {
-                            var population = _repo.PopulationOf(continent);
-                            <div class="pay-row @(_continentFilter.Contains(continent.Code) ? "" : "off")">
-                                <div class="pay-top">
-                                    <span class="dot" style="--c:@GeoPalette.ForContinent(continent.Code)"></span>
-                                    <span>@continent.Name</span>
-                                    <b>@Fmt.Population(population)</b>
-                                </div>
-                                <div class="pay-bar">
-                                    <i style="width:@(Fmt.N(population * 100d / maxPopulation))%;background:@GeoPalette.ForContinent(continent.Code)"></i>
-                                </div>
-                            </div>
-                        }
-                        <div class="pay-note">
-                            @_repo.Countries.Count countries · @_repo.Cities.Count cities ·
-                            @Fmt.Population(_repo.Continents.Sum(c => _repo.PopulationOf(c))) people
-                        </div>
-                    </div>
-                </div>
+                </fieldset>
 
-                <div class="section">
-                    <h2>Database</h2>
-                    <div class="db-line">
-                        <span class="db-dot @(_loadError is null ? "on" : "off")"></span>
-                        <span class="db-label">@Store.DisplayName</span>
-                    </div>
-                    <div class="db-counts">
-                        @_repo.Continents.Count continents · @_repo.Countries.Count countries ·
-                        @_repo.Cities.Count cities · @_repo.Landmarks.Count landmarks
-                    </div>
-                    <div class="db-actions">
-                        <button class="ghost" @onclick="ReloadAsync" disabled="@_busy">
-                            @(_busy ? "Working…" : "Reload")
-                        </button>
-                        <button class="ghost" @onclick="SeedAsync" disabled="@_busy">Seed atlas</button>
-                    </div>
-                    <div class="db-actions">
-                        <button class="ghost danger-text" @onclick="() => _confirmClear = true" disabled="@_busy">
-                            Clear graph
-                        </button>
-                    </div>
-                </div>
+                <fieldset>
+                    <legend>Place types</legend>
+                    @foreach (var kind in Kinds)
+                    {
+                        <label>
+                            <input type="checkbox"
+                                   checked="@_kindFilter.Contains(kind)"
+                                   @onchange="() => ToggleKind(kind)" />
+                            @GeoPalette.KindLabel(kind) (@KindCount(kind))
+                        </label>
+                    }
+                </fieldset>
 
-                <button class="reset" @onclick="ResetFilters">Reset all filters</button>
-            </aside>
+                <fieldset>
+                    <legend>Connections</legend>
+                    <label><input type="checkbox" @bind="_showHierarchy" /> Hierarchy</label>
+                    <label><input type="checkbox" @bind="_showBorders" /> Borders</label>
+                    <label><input type="checkbox" @bind="_showNear" /> Near</label>
+                </fieldset>
+            </div>
 
-            <section class="card stage">
-                <div class="toolbar">
-                    <div class="tabs" role="tablist">
-                        <button class="tab @(_view == ViewMode.Map ? "active" : "")" role="tab"
-                                aria-selected="@(_view == ViewMode.Map ? "true" : "false")"
-                                @onclick="() => SetViewAsync(ViewMode.Map)">Map</button>
-                        <button class="tab @(_view == ViewMode.Network ? "active" : "")" role="tab"
-                                aria-selected="@(_view == ViewMode.Network ? "true" : "false")"
-                                @onclick="() => SetViewAsync(ViewMode.Network)">Network</button>
-                        <button class="tab @(_view == ViewMode.Table ? "active" : "")" role="tab"
-                                aria-selected="@(_view == ViewMode.Table ? "true" : "false")"
-                                @onclick="() => SetViewAsync(ViewMode.Table)">Table</button>
-                    </div>
-
-                    <div class="tools">
-                        <span class="hint">@ViewHint</span>
-                        @if (_view == ViewMode.Network)
-                        {
-                            <button class="ghost" @onclick="RelayoutAsync" disabled="@(_busy || _graphBuilding)">
-                                Re-layout
-                            </button>
-                        }
-                        <span class="zoom-readout">@_visibleIds.Count / @PlaceCount</span>
-                    </div>
-                </div>
-
-                @if (_notice is not null)
+            <div class="row">
+                <button class="@(_view == ViewMode.Map ? "active" : null)"
+                        @onclick="() => SetViewAsync(ViewMode.Map)">Map</button>
+                <button class="@(_view == ViewMode.Network ? "active" : null)"
+                        @onclick="() => SetViewAsync(ViewMode.Network)">Network</button>
+                <button class="@(_view == ViewMode.Table ? "active" : null)"
+                        @onclick="() => SetViewAsync(ViewMode.Table)">Table</button>
+                <span class="muted">Showing @_visibleIds.Count of @PlaceCount</span>
+                @if (_view == ViewMode.Network)
                 {
-                    <div class="notice success">
-                        <span>@_notice</span>
-                        <button class="x" @onclick="() => _notice = null" aria-label="Dismiss">×</button>
-                    </div>
+                    <button @onclick="RelayoutAsync" disabled="@(_busy || _graphBuilding)">Re-layout</button>
                 }
-                @if (_loadError is not null)
-                {
-                    <div class="notice error">
-                        <span>Neo4j: @_loadError</span>
-                        <button class="x" @onclick="() => _loadError = null" aria-label="Dismiss">×</button>
-                    </div>
-                }
+            </div>
 
+            @if (_visibleIds.Count == 0)
+            {
+                <p>Nothing matches your filters.</p>
+            }
+            else
+            {
                 <div class="view-shell">
-                    @if (!HasData)
-                    {
-                        <div class="empty">
-                            <b>No geolocation data in Neo4j yet</b>
-                            <span>
-                                Load 7 continents, 64 countries, 152 cities, 43 landmarks and
-                                their real land borders in one click.
-                            </span>
-                            <button class="primary" @onclick="SeedAsync" disabled="@_busy">
-                                @(_busy ? "Seeding…" : "Seed world atlas")
-                            </button>
-                        </div>
-                    }
-                    else if (_visibleIds.Count == 0)
-                    {
-                        <div class="empty">
-                            <b>Nothing matches your filters</b>
-                            <span>Try clearing the search or re-enabling a continent and place type.</span>
-                            <button class="primary" @onclick="ResetFilters">Reset filters</button>
-                        </div>
-                    }
-                    else if (_view == ViewMode.Map)
+                    @if (_view == ViewMode.Map)
                     {
                         <AtlasMap Repository="_repo"
                                   VisibleIds="_visibleIds"
@@ -258,12 +136,9 @@ else
                     }
                     else if (_view == ViewMode.Network)
                     {
-                        @if (_graph is null || _graphBuilding)
+                        if (_graph is null || _graphBuilding)
                         {
-                            <div class="view-loading">
-                                <div class="spinner" aria-hidden="true"></div>
-                                <span>Laying out @PlaceCount nodes and relationships…</span>
-                            </div>
+                            <p class="muted">Laying out @PlaceCount nodes …</p>
                         }
                         else
                         {
@@ -284,7 +159,7 @@ else
                                     OnSelect="SelectAsync" />
                     }
 
-                    @if (_selectedId is not null && _repo is not null)
+                    @if (_selectedId is not null)
                     {
                         <DetailsPanel Repository="_repo"
                                       SelectedId="_selectedId"
@@ -292,36 +167,10 @@ else
                                       OnClose="CloseDetailsAsync" />
                     }
                 </div>
-            </section>
-        </div>
-    </div>
-
-    @if (_confirmClear)
-    {
-        <div class="modal-backdrop" @onclick="CloseConfirm">
-            <div class="modal" role="dialog" aria-modal="true" aria-labelledby="clear-title"
-                 @onclick:stopPropagation="true">
-                <div class="modal-head">
-                    <h3 id="clear-title">Remove the atlas from Neo4j?</h3>
-                    <button class="x" @onclick="CloseConfirm" aria-label="Close">×</button>
-                </div>
-                <div class="modal-body">
-                    <p class="confirm-text">
-                        This deletes every <code>:Continent</code>, <code>:Country</code>, <code>:City</code> and
-                        <code>:Landmark</code> node together with their relationships. Other graphs in the
-                        database are not touched.
-                    </p>
-                </div>
-                <div class="modal-foot">
-                    <button class="ghost" @onclick="CloseConfirm" disabled="@_busy">Cancel</button>
-                    <button class="danger" @onclick="ClearAsync" disabled="@_busy">
-                        @(_busy ? "Removing…" : "Remove graph")
-                    </button>
-                </div>
-            </div>
-        </div>
+            }
+        }
     }
-}
+</main>
 
 @code {
     private enum ViewMode

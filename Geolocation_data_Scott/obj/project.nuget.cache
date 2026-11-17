@@ -1,11 +1,11 @@
 {
   "version": 2,
-  "dgSpecHash": "f3Nt4jslukQ=",
+  "dgSpecHash": "dyfPhLSblvc=",
   "success": true,
-  "projectFilePath": "C:\\Users\\Tobias\\Desktop\\SCHOOL\\5CHIT\\SEW_INSY\\MACHO5C\\INSY\\Geolocation_data_Scott\\GeoViz.csproj",
+  "projectFilePath": "/home/max/School/5CHIT/SEWINSY/Geolocation_data_Scott/GeoViz.csproj",
   "expectedPackageFiles": [
-    "C:\\Users\\Tobias\\.nuget\\packages\\microsoft.aspnetcore.app.internal.assets\\10.0.2\\microsoft.aspnetcore.app.internal.assets.10.0.2.nupkg.sha512",
-    "C:\\Users\\Tobias\\.nuget\\packages\\neo4j.driver\\6.5.1\\neo4j.driver.6.5.1.nupkg.sha512"
+    "/home/max/.nuget/packages/microsoft.aspnetcore.app.internal.assets/10.0.13/microsoft.aspnetcore.app.internal.assets.10.0.13.nupkg.sha512",
+    "/home/max/.nuget/packages/neo4j.driver/6.5.1/neo4j.driver.6.5.1.nupkg.sha512"
   ],
   "logs": []
 }

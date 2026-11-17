@@ -2,7 +2,7 @@
   "version": 3,
   "targets": {
     "net10.0": {
-      "Microsoft.AspNetCore.App.Internal.Assets/10.0.2": {
+      "Microsoft.AspNetCore.App.Internal.Assets/10.0.13": {
         "type": "package",
         "build": {
           "build/Microsoft.AspNetCore.App.Internal.Assets.props": {},
@@ -28,10 +28,10 @@
     }
   },
   "libraries": {
-    "Microsoft.AspNetCore.App.Internal.Assets/10.0.2": {
-      "sha512": "fMAqrUm+aspxRAsCJ6Hlgs96XSHwNIr9HBNt7wyBAzQkPlfE7w+0C4NzDoJnso5YZyDI0VcRtEXxG9odt3KiZA==",
+    "Microsoft.AspNetCore.App.Internal.Assets/10.0.13": {
+      "sha512": "Y2cXnMnqht5fvja2H8kkr5WA2fYItIPwXiBVo83+/9oySuKZCrz4T+yyZRFtLpxxDScvtYDt7e+J0eNElJ+AiA==",
       "type": "package",
-      "path": "microsoft.aspnetcore.app.internal.assets/10.0.2",
+      "path": "microsoft.aspnetcore.app.internal.assets/10.0.13",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -47,7 +47,7 @@
         "build/Microsoft.AspNetCore.App.Internal.Assets.targets",
         "buildMultiTargeting/Microsoft.AspNetCore.App.Internal.Assets.targets",
         "buildTransitive/Microsoft.AspNetCore.App.Internal.Assets.targets",
-        "microsoft.aspnetcore.app.internal.assets.10.0.2.nupkg.sha512",
+        "microsoft.aspnetcore.app.internal.assets.10.0.13.nupkg.sha512",
         "microsoft.aspnetcore.app.internal.assets.nuspec"
       ]
     },
@@ -72,29 +72,30 @@
   },
   "projectFileDependencyGroups": {
     "net10.0": [
-      "Microsoft.AspNetCore.App.Internal.Assets >= 10.0.2",
+      "Microsoft.AspNetCore.App.Internal.Assets >= 10.0.13",
       "Neo4j.Driver >= 6.5.1"
     ]
   },
   "packageFolders": {
-    "C:\\Users\\Tobias\\.nuget\\packages\\": {}
+    "/home/max/.nuget/packages/": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Tobias\\Desktop\\SCHOOL\\5CHIT\\SEW_INSY\\MACHO5C\\INSY\\Geolocation_data_Scott\\GeoViz.csproj",
+      "projectUniqueName": "/home/max/School/5CHIT/SEWINSY/Geolocation_data_Scott/GeoViz.csproj",
       "projectName": "GeoViz",
-      "projectPath": "C:\\Users\\Tobias\\Desktop\\SCHOOL\\5CHIT\\SEW_INSY\\MACHO5C\\INSY\\Geolocation_data_Scott\\GeoViz.csproj",
-      "packagesPath": "C:\\Users\\Tobias\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Tobias\\Desktop\\SCHOOL\\5CHIT\\SEW_INSY\\MACHO5C\\INSY\\Geolocation_data_Scott\\obj\\",
+      "projectPath": "/home/max/School/5CHIT/SEWINSY/Geolocation_data_Scott/GeoViz.csproj",
+      "packagesPath": "/home/max/.nuget/packages/",
+      "outputPath": "/home/max/School/5CHIT/SEWINSY/Geolocation_data_Scott/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "C:\\Users\\Tobias\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        "/home/max/.nuget/NuGet/NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net10.0"
       ],
       "sources": {
+        "/usr/lib64/dotnet/library-packs": {},
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
@@ -124,7 +125,7 @@
           "Microsoft.AspNetCore.App.Internal.Assets": {
             "suppressParent": "All",
             "target": "Package",
-            "version": "[10.0.2, )",
+            "version": "[10.0.13, )",
             "autoReferenced": true
           },
           "Neo4j.Driver": {
@@ -151,7 +152,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.102/PortableRuntimeIdentifierGraph.json",
+        "runtimeIdentifierGraphPath": "/usr/lib64/dotnet/sdk/10.0.113/PortableRuntimeIdentifierGraph.json",
         "packagesToPrune": {
           "Microsoft.AspNetCore": "(,10.0.32767]",
           "Microsoft.AspNetCore.Antiforgery": "(,10.0.32767]",
