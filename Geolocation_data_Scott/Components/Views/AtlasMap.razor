@@ -64,21 +64,28 @@
                 }
             }
 
-            @if (ShowBorders)
+            @if (ShowNearest)
             {
-                @foreach (var (a, b) in Repository.Borders)
+                @foreach (var (a, b) in Repository.NearestDrawn)
                 {
-                    var left = Repository.FindCountry(a);
-                    var right = Repository.FindCountry(b);
-                    if (left is null || right is null
-                        || !IsVisible(GeoIds.Country(a))
-                        || !IsVisible(GeoIds.Country(b)))
+                    var left = Repository.Locate(a);
+                    var right = Repository.Locate(b);
+                    if (left is null || right is null || !IsVisible(a) || !IsVisible(b))
                     {
                         continue;
                     }
 
-                    <path class="@LinkCss("border", GeoIds.Country(a), GeoIds.Country(b))"
-                          d="@Arc(ProjectX(left.Lon), ProjectY(left.Lat), ProjectX(right.Lon), ProjectY(right.Lat))" />
+                    // City and landmark links are dense, so they only show when zoomed in.
+                    var linkKind = GeoIds.KindOf(a);
+                    var inFocus = IsFocusId(a) || IsFocusId(b);
+                    if ((linkKind == PlaceKind.City && _zoom < 1.5 && !inFocus)
+                        || (linkKind == PlaceKind.Landmark && _zoom < 1.3 && !inFocus))
+                    {
+                        continue;
+                    }
+
+                    <path class="@LinkCss("border", a, b)"
+                          d="@Arc(ProjectX(left.Value.Lon), ProjectY(left.Value.Lat), ProjectX(right.Value.Lon), ProjectY(right.Value.Lat))" />
                 }
             }
 
@@ -177,7 +184,7 @@
 
     [Parameter] public EventCallback<string?> OnSelect { get; set; }
 
-    [Parameter] public bool ShowBorders { get; set; } = true;
+    [Parameter] public bool ShowNearest { get; set; } = true;
 
     [Parameter] public bool ShowHierarchy { get; set; } = true;
 
@@ -423,7 +430,7 @@
             related.Add(GeoIds.Continent(country.ContinentCode));
         }
 
-        foreach (var neighbour in Repository.BordersOf(iso2))
+        foreach (var neighbour in Repository.NearestCountriesOf(iso2))
         {
             related.Add(GeoIds.Country(neighbour.Iso2));
         }

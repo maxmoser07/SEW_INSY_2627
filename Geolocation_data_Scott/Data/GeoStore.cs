@@ -5,9 +5,9 @@ public sealed class Neo4jOptions
 {
     public const string SectionName = "Neo4j";
 
-    public string Uri { get; set; } = "bolt://localhost:7687";
+    public string Uri { get; set; } = "neo4j://localhost:7687";
     public string Username { get; set; } = "neo4j";
-    public string Password { get; set; } = "MaXI2007!";
+    public string Password { get; set; } = "neo4jSample123";
     public string Database { get; set; } = "neo4j";
 }
 
@@ -17,7 +17,7 @@ public sealed record GeoSnapshot(
     IReadOnlyList<Country> Countries,
     IReadOnlyList<City> Cities,
     IReadOnlyList<Landmark> Landmarks,
-    IReadOnlyList<(string A, string B)> Borders);
+    IReadOnlyList<(string A, string B)> Nearest);
 
 public sealed class GeoValidationException(string message) : Exception(message);
 

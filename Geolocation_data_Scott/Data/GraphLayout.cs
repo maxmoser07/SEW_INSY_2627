@@ -4,7 +4,7 @@ public enum GeoEdgeKind
 {
     InContinent,
     InCountry,
-    Borders,
+    Nearest,
     Near
 }
 
@@ -246,12 +246,11 @@ public static class GraphBuilder
             }
         }
 
-        foreach (var (a, b) in repo.Borders)
+        foreach (var (a, b) in repo.NearestDrawn)
         {
-            if (byId.TryGetValue(GeoIds.Country(a), out var left)
-                && byId.TryGetValue(GeoIds.Country(b), out var right))
+            if (byId.TryGetValue(a, out var left) && byId.TryGetValue(b, out var right))
             {
-                edges.Add(new GeoGraphEdge(GeoEdgeKind.Borders, left, right));
+                edges.Add(new GeoGraphEdge(GeoEdgeKind.Nearest, left, right));
             }
         }
 
@@ -345,7 +344,12 @@ public static class GraphBuilder
                 {
                     GeoEdgeKind.InContinent => (245d, 0.008d),
                     GeoEdgeKind.InCountry => (82d, 0.019d),
-                    GeoEdgeKind.Borders => (235d, 0.011d),
+                    GeoEdgeKind.Nearest => edge.Source.Kind switch
+                    {
+                        PlaceKind.Continent => (300d, 0.006d),
+                        PlaceKind.Country => (235d, 0.011d),
+                        _ => (120d, 0.006d)
+                    },
                     _ => (44d, 0.021d)
                 };
 

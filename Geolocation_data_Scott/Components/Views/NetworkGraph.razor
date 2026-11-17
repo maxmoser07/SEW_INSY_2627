@@ -26,12 +26,12 @@
                 var css = EdgeCss(edge);
                 var color = edge.Kind switch
                 {
-                    GeoEdgeKind.Borders => "#c9a227",
+                    GeoEdgeKind.Nearest => "#c9a227",
                     GeoEdgeKind.Near => "#fbbf24",
                     _ => GeoPalette.ForContinent(edge.Source.ContinentCode)
                 };
 
-                @if (edge.Kind == GeoEdgeKind.Borders)
+                @if (edge.Kind == GeoEdgeKind.Nearest)
                 {
                     <path class="@css" d="@Arc(edge.Source, edge.Target)" stroke="@color" />
                 }
@@ -83,7 +83,7 @@
 
     [Parameter] public EventCallback<string?> OnSelect { get; set; }
 
-    [Parameter] public bool ShowBorders { get; set; } = true;
+    [Parameter] public bool ShowNearest { get; set; } = true;
 
     [Parameter] public bool ShowHierarchy { get; set; } = true;
 
@@ -355,7 +355,7 @@
 
             var enabled = edge.Kind switch
             {
-                GeoEdgeKind.Borders => ShowBorders,
+                GeoEdgeKind.Nearest => ShowNearest,
                 GeoEdgeKind.Near => ShowNear,
                 _ => ShowHierarchy
             };
@@ -371,7 +371,7 @@
     {
         var css = "gedge " + (edge.Kind switch
         {
-            GeoEdgeKind.Borders => "borders",
+            GeoEdgeKind.Nearest => "borders",
             GeoEdgeKind.Near => "near",
             GeoEdgeKind.InContinent => "in-continent",
             _ => "in-country"

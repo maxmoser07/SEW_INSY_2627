@@ -7,7 +7,7 @@ namespace GeoViz.Data;
 /// <summary>
 /// Neo4j implementation of <see cref="IGeoStore"/>. Graph shape:
 /// (:Continent), (:Country), (:City), (:Landmark) with
-/// IN_CONTINENT, IN_COUNTRY, BORDERS and NEAR.
+/// IN_CONTINENT, IN_COUNTRY, NEAR and NEAREST (all calculated from coordinates).
 /// </summary>
 public sealed class Neo4jGeoStore : IGeoStore, IAsyncDisposable
 {
@@ -136,21 +136,28 @@ public sealed class Neo4jGeoStore : IGeoStore, IAsyncDisposable
                 Text(record["description"])));
         });
 
-        var borders = await session.ExecuteReadAsync(async tx =>
+        var nearest = await session.ExecuteReadAsync(async tx =>
         {
             var cursor = await tx.RunAsync(
                 """
-                MATCH (a:Country)-[:BORDERS]->(b:Country)
-                WHERE a.iso2 < b.iso2
-                RETURN a.iso2 AS a, b.iso2 AS b
-                ORDER BY a, b
+                MATCH (a)-[:NEAREST]->(b)
+                RETURN
+                  CASE WHEN a:Continent THEN 'cont:' + a.code
+                       WHEN a:Country THEN 'country:' + a.iso2
+                       WHEN a:City THEN 'city:' + a.id
+                       ELSE 'landmark:' + a.id END AS fromId,
+                  CASE WHEN b:Continent THEN 'cont:' + b.code
+                       WHEN b:Country THEN 'country:' + b.iso2
+                       WHEN b:City THEN 'city:' + b.id
+                       ELSE 'landmark:' + b.id END AS toId
+                ORDER BY fromId, toId
                 """);
 
             return await cursor.ToListAsync(record =>
-                (Text(record["a"]), Text(record["b"])));
+                (Text(record["fromId"]), Text(record["toId"])));
         });
 
-        return new GeoSnapshot(continents, countries, cities, landmarks, borders);
+        return new GeoSnapshot(continents, countries, cities, landmarks, nearest);
     }
 
     // ----------------------------------------------------------------- write
@@ -185,6 +192,7 @@ public sealed class Neo4jGeoStore : IGeoStore, IAsyncDisposable
             await Consume(tx, "MATCH (:Country)-[r:IN_CONTINENT]->(:Continent) DELETE r", new { });
             await Consume(tx, "MATCH (:City)-[r:IN_COUNTRY]->(:Country) DELETE r", new { });
             await Consume(tx, "MATCH (:Country)-[r:BORDERS]->(:Country) DELETE r", new { });
+            await Consume(tx, "MATCH ()-[r:NEAREST]->() DELETE r", new { });
             await Consume(tx, "MATCH (:Landmark)-[r:NEAR]->(:City) DELETE r", new { });
 
             await Consume(tx,
@@ -311,16 +319,26 @@ public sealed class Neo4jGeoStore : IGeoStore, IAsyncDisposable
                     }).ToArray()
                 });
 
-            await Consume(tx,
-                """
-                UNWIND $rows AS row
-                MATCH (a:Country {iso2: row.a}), (b:Country {iso2: row.b})
-                MERGE (a)-[:BORDERS]->(b)
-                """,
-                new
-                {
-                    rows = GeoSeed.Borders.Select(b => new { a = b.A, b = b.B }).ToArray()
-                });
+            // Every place -> its nearest places of the same kind (one statement per label).
+            foreach (var (prefix, label, key) in new[]
+                     {
+                         (GeoIds.ContinentPrefix, "Continent", "code"),
+                         (GeoIds.CountryPrefix, "Country", "iso2"),
+                         (GeoIds.CityPrefix, "City", "id"),
+                         (GeoIds.LandmarkPrefix, "Landmark", "id")
+                     })
+            {
+                var nearestRows = GeoSeed.Nearest
+                    .Where(link => link.A.StartsWith(prefix, StringComparison.Ordinal))
+                    .Select(link => new { a = link.A[prefix.Length..], b = link.B[prefix.Length..] })
+                    .ToArray();
+
+                await Consume(tx,
+                    "UNWIND $rows AS row " +
+                    "MATCH (a:" + label + " {" + key + ": row.a}), (b:" + label + " {" + key + ": row.b}) " +
+                    "MERGE (a)-[:NEAREST]->(b)",
+                    new { rows = nearestRows });
+            }
 
             var cityById = GeoSeed.Cities.ToDictionary(c => c.Id, StringComparer.Ordinal);
             await Consume(tx,

@@ -177,7 +177,7 @@ else if (_landmark is not null)
         var color = GeoPalette.ForContinent(country.ContinentCode);
         var capital = Repository.CapitalOf(country);
         var cities = Repository.CitiesIn(country.Iso2);
-        var neighbours = Repository.BordersOf(country.Iso2);
+        var neighbours = Repository.NearestCountriesOf(country.Iso2);
         var landmarks = Repository.LandmarksIn(country.Iso2);
         var density = country.AreaKm2 > 0 ? (long)Math.Round(country.Population / country.AreaKm2) : 0;
 
@@ -195,7 +195,7 @@ else if (_landmark is not null)
                 {
                     <span class="badge" style="--c:@color">@continent.Name</span>
                 }
-                <span class="badge ghost">@neighbours.Count neighbours</span>
+                <span class="badge ghost">@neighbours.Count nearest</span>
                 <span class="badge ghost">@cities.Count cities</span>
                 <span class="badge ghost">@landmarks.Count landmarks</span>
             </div>
@@ -243,7 +243,7 @@ else if (_landmark is not null)
             </div>
 
             <div class="d-sec">
-                <h4>Neighbouring countries <span class="n">@neighbours.Count</span></h4>
+                <h4>Nearest countries <span class="n">@neighbours.Count</span></h4>
                 @if (neighbours.Count == 0)
                 {
                     <span class="none">No seeded land borders.</span>

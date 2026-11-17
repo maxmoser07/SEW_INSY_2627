@@ -27,7 +27,7 @@
             @_repo.Countries.Count countries ·
             @_repo.Cities.Count cities ·
             @_repo.Landmarks.Count landmarks ·
-            @_repo.Borders.Count borders
+            @_repo.Nearest.Count nearest links
             (@Store.DisplayName)
         </p>
 
@@ -98,7 +98,7 @@
                 <fieldset>
                     <legend>Connections</legend>
                     <label><input type="checkbox" @bind="_showHierarchy" /> Hierarchy</label>
-                    <label><input type="checkbox" @bind="_showBorders" /> Borders</label>
+                    <label><input type="checkbox" @bind="_showNearest" /> Nearest 3</label>
                     <label><input type="checkbox" @bind="_showNear" /> Near</label>
                 </fieldset>
             </div>
@@ -130,7 +130,7 @@
                                   VisibleIds="_visibleIds"
                                   SelectedId="_selectedId"
                                   OnSelect="SelectAsync"
-                                  ShowBorders="_showBorders"
+                                  ShowNearest="_showNearest"
                                   ShowHierarchy="_showHierarchy"
                                   ShowNear="_showNear" />
                     }
@@ -146,7 +146,7 @@
                                           VisibleIds="_visibleIds"
                                           SelectedId="_selectedId"
                                           OnSelect="SelectAsync"
-                                          ShowBorders="_showBorders"
+                                          ShowNearest="_showNearest"
                                           ShowHierarchy="_showHierarchy"
                                           ShowNear="_showNear" />
                         }
@@ -202,7 +202,7 @@
     private readonly HashSet<string> _continentFilter = new(StringComparer.Ordinal);
     private readonly HashSet<PlaceKind> _kindFilter = [.. Kinds];
     private bool _showHierarchy = true;
-    private bool _showBorders = true;
+    private bool _showNearest = true;
     private bool _showNear = true;
     private string? _selectedId;
     private IReadOnlySet<string> _visibleIds = new HashSet<string>();
@@ -319,7 +319,7 @@
             await LoadSnapshotAsync();
             _notice = $"Seeded the world atlas: {_repo!.Continents.Count} continents, " +
                       $"{_repo.Countries.Count} countries, {_repo.Cities.Count} cities, " +
-                      $"{_repo.Landmarks.Count} landmarks and {_repo.Borders.Count} land borders.";
+                      $"{_repo.Landmarks.Count} landmarks and {_repo.Nearest.Count} nearest links.";
         }
         catch (Exception ex)
         {
@@ -524,7 +524,7 @@
         }
 
         _showHierarchy = true;
-        _showBorders = true;
+        _showNearest = true;
         _showNear = true;
         _selectedId = null;
         RefreshVisible();

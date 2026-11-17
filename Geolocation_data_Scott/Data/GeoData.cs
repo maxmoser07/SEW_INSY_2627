@@ -206,7 +206,7 @@ public sealed class GeoRepository
     private readonly Dictionary<string, IReadOnlyList<City>> _citiesByContinent;
     private readonly Dictionary<string, IReadOnlyList<Landmark>> _landmarksByCity;
     private readonly Dictionary<string, IReadOnlyList<Landmark>> _landmarksByCountry;
-    private readonly Dictionary<string, IReadOnlyList<Country>> _borders;
+    private readonly Dictionary<string, IReadOnlyList<Country>> _nearestCountries;
 
     public GeoRepository(GeoSnapshot snapshot)
     {
@@ -214,7 +214,8 @@ public sealed class GeoRepository
         Countries = snapshot.Countries;
         Cities = snapshot.Cities;
         Landmarks = snapshot.Landmarks;
-        Borders = snapshot.Borders;
+        Nearest = snapshot.Nearest;
+        NearestDrawn = Dedupe(Nearest);
 
         _continents = Continents.ToDictionary(c => c.Code, StringComparer.Ordinal);
         _countries = Countries.ToDictionary(c => c.Iso2, StringComparer.Ordinal);
@@ -259,19 +260,22 @@ public sealed class GeoRepository
                 g => (IReadOnlyList<Landmark>)g.OrderBy(l => l.Name, StringComparer.Ordinal).ToList(),
                 StringComparer.Ordinal);
 
-        var borderMap = new Dictionary<string, List<Country>>(StringComparer.Ordinal);
-        foreach (var (a, b) in Borders)
+        var nearestMap = new Dictionary<string, List<Country>>(StringComparer.Ordinal);
+        foreach (var (a, b) in Nearest)
         {
-            if (!_countries.TryGetValue(a, out var left) || !_countries.TryGetValue(b, out var right))
+            if (!a.StartsWith(GeoIds.CountryPrefix, StringComparison.Ordinal)
+                || !b.StartsWith(GeoIds.CountryPrefix, StringComparison.Ordinal))
             {
                 continue;
             }
 
-            AddBorder(borderMap, a, right);
-            AddBorder(borderMap, b, left);
+            if (_countries.TryGetValue(GeoIds.RawId(b), out var target))
+            {
+                AddBorder(nearestMap, GeoIds.RawId(a), target);
+            }
         }
 
-        _borders = borderMap.ToDictionary(
+        _nearestCountries = nearestMap.ToDictionary(
             pair => pair.Key,
             pair => (IReadOnlyList<Country>)pair.Value.OrderBy(c => c.Name, StringComparer.Ordinal).ToList(),
             StringComparer.Ordinal);
@@ -285,11 +289,17 @@ public sealed class GeoRepository
 
     public IReadOnlyList<Landmark> Landmarks { get; }
 
-    /// <summary>Country pairs that share a land border (each pair stored once).</summary>
-    public IReadOnlyList<(string A, string B)> Borders { get; }
+    /// <summary>
+    /// "Points at the nearest" links between places of the same kind, as GeoIds.
+    /// (A, B) means B is one of A's closest places; every place has up to three.
+    /// </summary>
+    public IReadOnlyList<(string A, string B)> Nearest { get; }
+
+    /// <summary>The same links with mutual pairs listed once, so views draw one line each.</summary>
+    public IReadOnlyList<(string A, string B)> NearestDrawn { get; }
 
     public int RelationshipCount =>
-        Countries.Count + Cities.Count + Borders.Count + Landmarks.Count;
+        Countries.Count + Cities.Count + Landmarks.Count + Nearest.Count;
 
     public Continent? FindContinent(string code) => _continents.GetValueOrDefault(code);
 
@@ -325,8 +335,35 @@ public sealed class GeoRepository
     public IReadOnlyList<Landmark> LandmarksIn(string countryIso2) =>
         _landmarksByCountry.GetValueOrDefault(countryIso2) ?? [];
 
-    public IReadOnlyList<Country> BordersOf(string countryIso2) =>
-        _borders.GetValueOrDefault(countryIso2) ?? [];
+    public IReadOnlyList<Country> NearestCountriesOf(string countryIso2) =>
+        _nearestCountries.GetValueOrDefault(countryIso2) ?? [];
+
+    /// <summary>Latitude/longitude of any place addressed by a GeoId, or null if unknown.</summary>
+    public (double Lat, double Lon)? Locate(string id)
+    {
+        try
+        {
+            var raw = GeoIds.RawId(id);
+
+            switch (GeoIds.KindOf(id))
+            {
+                case PlaceKind.Continent when FindContinent(raw) is { } continent:
+                    return (continent.Lat, continent.Lon);
+                case PlaceKind.Country when FindCountry(raw) is { } country:
+                    return (country.Lat, country.Lon);
+                case PlaceKind.City when FindCity(raw) is { } city:
+                    return (city.Lat, city.Lon);
+                case PlaceKind.Landmark when FindLandmark(raw) is { } landmark:
+                    return (landmark.Lat, landmark.Lon);
+            }
+        }
+        catch (ArgumentException)
+        {
+            // Unknown id.
+        }
+
+        return null;
+    }
 
     public City? CapitalOf(Country country) =>
         CitiesIn(country.Iso2).FirstOrDefault(c => c.IsCapital)
@@ -414,6 +451,23 @@ public sealed class GeoRepository
         return id;
     }
 
+    private static IReadOnlyList<(string A, string B)> Dedupe(IReadOnlyList<(string A, string B)> links)
+    {
+        var seen = new HashSet<(string, string)>();
+        var result = new List<(string A, string B)>();
+
+        foreach (var (a, b) in links)
+        {
+            var key = string.CompareOrdinal(a, b) <= 0 ? (a, b) : (b, a);
+            if (seen.Add(key))
+            {
+                result.Add((a, b));
+            }
+        }
+
+        return result;
+    }
+
     private static void AddBorder(Dictionary<string, List<Country>> map, string key, Country neighbour)
     {
         if (!map.TryGetValue(key, out var list))
@@ -448,7 +502,7 @@ public static class GeoSeed
         new("ANT", "Antarctica", -80.0, 20.0)
     ];
 
-    public static readonly IReadOnlyList<Country> Countries =
+    private static readonly IReadOnlyList<Country> RawCountries =
     [
         // Europe
         new("DE", "Germany", "Berlin", "EUR", 84_482_000, 357_588, 51.16, 10.45),
@@ -529,7 +583,7 @@ public static class GeoSeed
         new("AQ", "Antarctica", "McMurdo Station", "ANT", 1_500, 14_200_000, -82.00, 20.00)
     ];
 
-    public static readonly IReadOnlyList<City> Cities =
+    private static readonly IReadOnlyList<City> RawCities =
     [
         // Germany
         new("berlin", "Berlin", "DE", 52.5200, 13.4050, 3_769_000, true),
@@ -815,7 +869,7 @@ public static class GeoSeed
         new("south-pole-station", "South Pole Station", "AQ", -89.9822, 0.0000, 50, false)
     ];
 
-    public static readonly IReadOnlyList<Landmark> Landmarks =
+    private static readonly IReadOnlyList<Landmark> RawLandmarks =
     [
         // Europe
         new("eiffel-tower", "Eiffel Tower", "paris", 48.8584, 2.2945, "Monument",
@@ -918,48 +972,70 @@ public static class GeoSeed
             "Snow-free polar desert in Victoria Land.")
     ];
 
-    /// <summary>Land borders, stored as unordered pairs. Both states must be seeded.</summary>
-    private static readonly (string A, string B)[] BorderPairs =
-    [
-        ("DE", "FR"), ("DE", "NL"), ("DE", "CH"), ("DE", "AT"), ("DE", "CZ"), ("DE", "PL"),
-        ("FR", "ES"), ("FR", "IT"), ("FR", "CH"),
-        ("ES", "PT"),
-        ("IT", "CH"), ("IT", "AT"),
-        ("CH", "AT"), ("AT", "CZ"),
-        ("NO", "SE"), ("NO", "RU"),
-        ("PL", "CZ"), ("PL", "RU"),
-        ("GR", "TR"),
-        ("TR", "IR"),
-        ("CN", "RU"), ("CN", "MN"), ("CN", "KZ"), ("CN", "IN"), ("CN", "PK"), ("CN", "NP"), ("CN", "VN"),
-        ("IN", "PK"), ("IN", "NP"),
-        ("IR", "PK"),
-        ("ID", "MY"), ("ID", "PG"),
-        ("MY", "TH"),
-        ("SA", "AE"),
-        ("IL", "EG"),
-        ("MA", "DZ"),
-        ("KE", "TZ"), ("KE", "ET"),
-        ("US", "CA"), ("US", "MX"),
-        ("MX", "GT"),
-        ("CR", "PA"),
-        ("PA", "CO"),
-        ("BR", "AR"), ("BR", "PE"), ("BR", "CO"), ("BR", "VE"), ("BR", "BO"), ("BR", "UY"),
-        ("AR", "CL"), ("AR", "BO"),
-        ("CL", "PE"), ("CL", "BO"),
-        ("PE", "CO"), ("PE", "BO"), ("PE", "EC"),
-        ("CO", "EC"), ("CO", "VE"),
-        ("UY", "AR")
-    ];
+    // ---------------------------------------------------------------------
+    // Links are calculated from the coordinates; nothing below is hand-listed.
+    //   * every place points at the closest place one rank higher
+    //     (landmark -> city, city -> country, country -> continent)
+    //   * every place points at its NearestCount closest places of the same kind
+    // The Raw* lists above only carry names, coordinates and facts; the parent
+    // code they contain is overwritten here.
+    // ---------------------------------------------------------------------
 
-    public static readonly IReadOnlyList<(string A, string B)> Borders = BorderPairs
-        .Select(pair => string.CompareOrdinal(pair.A, pair.B) <= 0
-            ? pair
-            : (pair.B, pair.A))
-        .Distinct()
+    public const int NearestCount = 3;
+
+    public static readonly IReadOnlyList<Country> Countries = RawCountries
+        .Select(country => country with
+        {
+            ContinentCode = Closest(Continents, country.Lat, country.Lon, c => c.Lat, c => c.Lon).Code
+        })
         .ToList();
 
+    public static readonly IReadOnlyList<City> Cities = RawCities
+        .Select(city => city with
+        {
+            CountryIso2 = Closest(RawCountries, city.Lat, city.Lon, c => c.Lat, c => c.Lon).Iso2
+        })
+        .ToList();
+
+    public static readonly IReadOnlyList<Landmark> Landmarks = RawLandmarks
+        .Select(landmark => landmark with
+        {
+            CityId = Closest(RawCities, landmark.Lat, landmark.Lon, c => c.Lat, c => c.Lon).Id
+        })
+        .ToList();
+
+    /// <summary>(A, B): B is one of A's closest places of the same kind. Ids are GeoIds.</summary>
+    public static readonly IReadOnlyList<(string A, string B)> Nearest =
+    [
+        .. NearestLinks(Continents, c => GeoIds.Continent(c.Code), c => c.Lat, c => c.Lon),
+        .. NearestLinks(Countries, c => GeoIds.Country(c.Iso2), c => c.Lat, c => c.Lon),
+        .. NearestLinks(Cities, c => GeoIds.City(c.Id), c => c.Lat, c => c.Lon),
+        .. NearestLinks(Landmarks, l => GeoIds.Landmark(l.Id), l => l.Lat, l => l.Lon)
+    ];
+
+    private static T Closest<T>(
+        IEnumerable<T> candidates, double lat, double lon, Func<T, double> candLat, Func<T, double> candLon) =>
+        candidates.MinBy(c => GeoMath.DistanceKm(lat, lon, candLat(c), candLon(c)))!;
+
+    private static IEnumerable<(string A, string B)> NearestLinks<T>(
+        IReadOnlyList<T> places, Func<T, string> id, Func<T, double> lat, Func<T, double> lon)
+    {
+        foreach (var place in places)
+        {
+            var closest = places
+                .Where(other => !object.ReferenceEquals(other, place))
+                .OrderBy(other => GeoMath.DistanceKm(lat(place), lon(place), lat(other), lon(other)))
+                .Take(NearestCount);
+
+            foreach (var other in closest)
+            {
+                yield return (id(place), id(other));
+            }
+        }
+    }
+
     public static GeoSnapshot ToSnapshot() =>
-        new(Continents, Countries, Cities, Landmarks, Borders);
+        new(Continents, Countries, Cities, Landmarks, Nearest);
 
     /// <summary>Sanity checks that run before the seed touches the database.</summary>
     public static IReadOnlyList<string> Validate()
@@ -1014,22 +1090,6 @@ public static class GeoSeed
             if (!cityIds.Contains(landmark.CityId))
             {
                 errors.Add($"Landmark {landmark.Id} references unknown city {landmark.CityId}.");
-            }
-        }
-
-        foreach (var (a, b) in Borders)
-        {
-            if (!countryCodes.Contains(a) || !countryCodes.Contains(b))
-            {
-                errors.Add($"Border {a}-{b} references a country that is not seeded.");
-            }
-        }
-
-        foreach (var country in Countries)
-        {
-            if (!Cities.Any(c => c.CountryIso2 == country.Iso2 && c.IsCapital))
-            {
-                errors.Add($"Country {country.Iso2} has no capital city in the seed.");
             }
         }
 
@@ -1120,13 +1180,11 @@ public static class GeoSeed
         }
 
         cypher.AppendLine();
-        cypher.AppendLine("// Country -> neighbouring country");
+        cypher.AppendLine($"// Every place -> its {NearestCount} nearest places of the same kind");
 
-        foreach (var (a, b) in Borders)
+        foreach (var (a, b) in Nearest)
         {
-            cypher.AppendLine(
-                $"MATCH (a:Country {{iso2: '{Esc(a)}'}}), (b:Country {{iso2: '{Esc(b)}'}}) " +
-                "MERGE (a)-[:BORDERS]->(b);");
+            cypher.AppendLine($"MATCH {CypherNode("a", a)}, {CypherNode("b", b)} MERGE (a)-[:NEAREST]->(b);");
         }
 
         cypher.AppendLine();
@@ -1145,6 +1203,20 @@ public static class GeoSeed
         }
 
         return cypher.ToString();
+    }
+
+    private static string CypherNode(string alias, string id)
+    {
+        var raw = GeoIds.RawId(id);
+        var (label, key) = GeoIds.KindOf(id) switch
+        {
+            PlaceKind.Continent => ("Continent", "code"),
+            PlaceKind.Country => ("Country", "iso2"),
+            PlaceKind.City => ("City", "id"),
+            _ => ("Landmark", "id")
+        };
+
+        return $"({alias}:{label} {{{key}: '{Esc(raw)}'}})";
     }
 
     private static string Esc(string value) => value.Replace("\\", "\\\\").Replace("'", "\\'");
