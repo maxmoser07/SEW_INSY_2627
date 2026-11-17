@@ -1,0 +1,829 @@
+@page "/"
+@using GeoViz.Data
+@inject IGeoStore Store
+@rendermode InteractiveServer
+
+<PageTitle>GeoViz · World Geolocation Graph</PageTitle>
+
+@if (_repo is null)
+{
+    <div class="app">
+        <div class="boot card">
+            <div class="eyebrow"><span class="pulse"></span>Blazor Server · Neo4j</div>
+            <h1>GEOVIZ <span>World Geolocation Graph</span></h1>
+
+            @if (_loadError is null)
+            {
+                <div class="spinner" aria-hidden="true"></div>
+                <p class="boot-text">Connecting to @Store.DisplayName …</p>
+            }
+            else
+            {
+                <h3 class="boot-title">Database unavailable</h3>
+                <p class="boot-error">@_loadError</p>
+                <p class="boot-text">
+                    Make sure the Neo4j server is running and check the connection settings in
+                    <code>appsettings.json</code>.
+                </p>
+                <button class="primary" @onclick="LoadInitialAsync">Retry connection</button>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <div class="app">
+        <header>
+            <div class="brand">
+                <div class="eyebrow"><span class="pulse"></span>Blazor Server · @Store.DisplayName</div>
+                <h1>GEOVIZ <span>World Geolocation Graph</span></h1>
+                <p class="sub">
+                    Live graph from Neo4j · @_repo.Continents.Count continents,
+                    @_repo.Countries.Count countries, @_repo.Cities.Count cities,
+                    @_repo.Landmarks.Count landmarks and @_repo.RelationshipCount relationships
+                </p>
+            </div>
+            <div class="stats">
+                <div class="stat"><b>@_repo.Continents.Count</b><span>Continents</span></div>
+                <div class="stat"><b>@_repo.Countries.Count</b><span>Countries</span></div>
+                <div class="stat"><b>@_repo.Cities.Count</b><span>Cities</span></div>
+                <div class="stat"><b>@_repo.Landmarks.Count</b><span>Landmarks</span></div>
+                <div class="stat"><b>@_repo.Borders.Count</b><span>Land borders</span></div>
+            </div>
+        </header>
+
+        <div class="grid">
+            <aside class="card sidebar">
+                <div class="section">
+                    <label class="search">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="2.2" stroke-linecap="round">
+                            <circle cx="11" cy="11" r="7" />
+                            <path d="m20 20-3.5-3.5" />
+                        </svg>
+                        <input type="search" placeholder="Search city, country, landmark…"
+                               value="@_search" @oninput="OnSearchInput"
+                               autocomplete="off" spellcheck="false" />
+                    </label>
+                </div>
+
+                <div class="section">
+                    <h2>Continents</h2>
+                    <div class="filter-list">
+                        @foreach (var continent in _repo.Continents)
+                        {
+                            var count = _repo.CountriesIn(continent.Code).Count;
+                            <label class="filter-row" style="--c:@GeoPalette.ForContinent(continent.Code)">
+                                <input type="checkbox"
+                                       checked="@_continentFilter.Contains(continent.Code)"
+                                       @onchange="e => ToggleContinent(continent.Code, (bool)e.Value!)" />
+                                <span class="box">
+                                    <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="#08111c"
+                                         stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M2 6.4 4.7 9 10 3.4" />
+                                    </svg>
+                                </span>
+                                <span class="dot"></span>
+                                <span>
+                                    <span>@continent.Name</span><br />
+                                    <span class="loc">@continent.Code</span>
+                                </span>
+                                <span class="meta">@count</span>
+                            </label>
+                        }
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Place types</h2>
+                    <div class="chips">
+                        @foreach (var kind in Kinds)
+                        {
+                            <button type="button" class="chip" style="--c:@KindColor(kind)"
+                                    aria-pressed="@(_kindFilter.Contains(kind) ? "true" : "false")"
+                                    @onclick="() => ToggleKind(kind)">
+                                <span class="dot"></span>@GeoPalette.KindLabel(kind)
+                                <span class="count">@KindCount(kind)</span>
+                            </button>
+                        }
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Relationships</h2>
+                    <label class="switch-row">
+                        <span class="swatch hierarchy"></span>IN_CONTINENT / IN_COUNTRY
+                        <span class="count">@(_repo.Countries.Count + _repo.Cities.Count)</span>
+                        <input type="checkbox" @bind="_showHierarchy" />
+                    </label>
+                    <label class="switch-row">
+                        <span class="swatch borders"></span>BORDERS
+                        <span class="count">@_repo.Borders.Count</span>
+                        <input type="checkbox" @bind="_showBorders" />
+                    </label>
+                    <label class="switch-row">
+                        <span class="swatch near"></span>NEAR
+                        <span class="count">@_repo.Landmarks.Count</span>
+                        <input type="checkbox" @bind="_showNear" />
+                    </label>
+                </div>
+
+                <div class="section">
+                    <h2>Population by continent</h2>
+                    @{
+                        var maxPopulation = Math.Max(1, _repo.Continents.Count == 0
+                            ? 1
+                            : _repo.Continents.Max(c => _repo.PopulationOf(c)));
+                    }
+                    <div class="payroll">
+                        @foreach (var continent in _repo.Continents)
+                        {
+                            var population = _repo.PopulationOf(continent);
+                            <div class="pay-row @(_continentFilter.Contains(continent.Code) ? "" : "off")">
+                                <div class="pay-top">
+                                    <span class="dot" style="--c:@GeoPalette.ForContinent(continent.Code)"></span>
+                                    <span>@continent.Name</span>
+                                    <b>@Fmt.Population(population)</b>
+                                </div>
+                                <div class="pay-bar">
+                                    <i style="width:@(Fmt.N(population * 100d / maxPopulation))%;background:@GeoPalette.ForContinent(continent.Code)"></i>
+                                </div>
+                            </div>
+                        }
+                        <div class="pay-note">
+                            @_repo.Countries.Count countries · @_repo.Cities.Count cities ·
+                            @Fmt.Population(_repo.Continents.Sum(c => _repo.PopulationOf(c))) people
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Database</h2>
+                    <div class="db-line">
+                        <span class="db-dot @(_loadError is null ? "on" : "off")"></span>
+                        <span class="db-label">@Store.DisplayName</span>
+                    </div>
+                    <div class="db-counts">
+                        @_repo.Continents.Count continents · @_repo.Countries.Count countries ·
+                        @_repo.Cities.Count cities · @_repo.Landmarks.Count landmarks
+                    </div>
+                    <div class="db-actions">
+                        <button class="ghost" @onclick="ReloadAsync" disabled="@_busy">
+                            @(_busy ? "Working…" : "Reload")
+                        </button>
+                        <button class="ghost" @onclick="SeedAsync" disabled="@_busy">Seed atlas</button>
+                    </div>
+                    <div class="db-actions">
+                        <button class="ghost danger-text" @onclick="() => _confirmClear = true" disabled="@_busy">
+                            Clear graph
+                        </button>
+                    </div>
+                </div>
+
+                <button class="reset" @onclick="ResetFilters">Reset all filters</button>
+            </aside>
+
+            <section class="card stage">
+                <div class="toolbar">
+                    <div class="tabs" role="tablist">
+                        <button class="tab @(_view == ViewMode.Map ? "active" : "")" role="tab"
+                                aria-selected="@(_view == ViewMode.Map ? "true" : "false")"
+                                @onclick="() => SetViewAsync(ViewMode.Map)">Map</button>
+                        <button class="tab @(_view == ViewMode.Network ? "active" : "")" role="tab"
+                                aria-selected="@(_view == ViewMode.Network ? "true" : "false")"
+                                @onclick="() => SetViewAsync(ViewMode.Network)">Network</button>
+                        <button class="tab @(_view == ViewMode.Table ? "active" : "")" role="tab"
+                                aria-selected="@(_view == ViewMode.Table ? "true" : "false")"
+                                @onclick="() => SetViewAsync(ViewMode.Table)">Table</button>
+                    </div>
+
+                    <div class="tools">
+                        <span class="hint">@ViewHint</span>
+                        @if (_view == ViewMode.Network)
+                        {
+                            <button class="ghost" @onclick="RelayoutAsync" disabled="@(_busy || _graphBuilding)">
+                                Re-layout
+                            </button>
+                        }
+                        <span class="zoom-readout">@_visibleIds.Count / @PlaceCount</span>
+                    </div>
+                </div>
+
+                @if (_notice is not null)
+                {
+                    <div class="notice success">
+                        <span>@_notice</span>
+                        <button class="x" @onclick="() => _notice = null" aria-label="Dismiss">×</button>
+                    </div>
+                }
+                @if (_loadError is not null)
+                {
+                    <div class="notice error">
+                        <span>Neo4j: @_loadError</span>
+                        <button class="x" @onclick="() => _loadError = null" aria-label="Dismiss">×</button>
+                    </div>
+                }
+
+                <div class="view-shell">
+                    @if (!HasData)
+                    {
+                        <div class="empty">
+                            <b>No geolocation data in Neo4j yet</b>
+                            <span>
+                                Load 7 continents, 64 countries, 152 cities, 43 landmarks and
+                                their real land borders in one click.
+                            </span>
+                            <button class="primary" @onclick="SeedAsync" disabled="@_busy">
+                                @(_busy ? "Seeding…" : "Seed world atlas")
+                            </button>
+                        </div>
+                    }
+                    else if (_visibleIds.Count == 0)
+                    {
+                        <div class="empty">
+                            <b>Nothing matches your filters</b>
+                            <span>Try clearing the search or re-enabling a continent and place type.</span>
+                            <button class="primary" @onclick="ResetFilters">Reset filters</button>
+                        </div>
+                    }
+                    else if (_view == ViewMode.Map)
+                    {
+                        <AtlasMap Repository="_repo"
+                                  VisibleIds="_visibleIds"
+                                  SelectedId="_selectedId"
+                                  OnSelect="SelectAsync"
+                                  ShowBorders="_showBorders"
+                                  ShowHierarchy="_showHierarchy"
+                                  ShowNear="_showNear" />
+                    }
+                    else if (_view == ViewMode.Network)
+                    {
+                        @if (_graph is null || _graphBuilding)
+                        {
+                            <div class="view-loading">
+                                <div class="spinner" aria-hidden="true"></div>
+                                <span>Laying out @PlaceCount nodes and relationships…</span>
+                            </div>
+                        }
+                        else
+                        {
+                            <NetworkGraph Graph="_graph"
+                                          VisibleIds="_visibleIds"
+                                          SelectedId="_selectedId"
+                                          OnSelect="SelectAsync"
+                                          ShowBorders="_showBorders"
+                                          ShowHierarchy="_showHierarchy"
+                                          ShowNear="_showNear" />
+                        }
+                    }
+                    else
+                    {
+                        <PlaceTable Repository="_repo"
+                                    VisibleIds="_visibleIds"
+                                    SelectedId="_selectedId"
+                                    OnSelect="SelectAsync" />
+                    }
+
+                    @if (_selectedId is not null && _repo is not null)
+                    {
+                        <DetailsPanel Repository="_repo"
+                                      SelectedId="_selectedId"
+                                      OnSelect="SelectAsync"
+                                      OnClose="CloseDetailsAsync" />
+                    }
+                </div>
+            </section>
+        </div>
+    </div>
+
+    @if (_confirmClear)
+    {
+        <div class="modal-backdrop" @onclick="CloseConfirm">
+            <div class="modal" role="dialog" aria-modal="true" aria-labelledby="clear-title"
+                 @onclick:stopPropagation="true">
+                <div class="modal-head">
+                    <h3 id="clear-title">Remove the atlas from Neo4j?</h3>
+                    <button class="x" @onclick="CloseConfirm" aria-label="Close">×</button>
+                </div>
+                <div class="modal-body">
+                    <p class="confirm-text">
+                        This deletes every <code>:Continent</code>, <code>:Country</code>, <code>:City</code> and
+                        <code>:Landmark</code> node together with their relationships. Other graphs in the
+                        database are not touched.
+                    </p>
+                </div>
+                <div class="modal-foot">
+                    <button class="ghost" @onclick="CloseConfirm" disabled="@_busy">Cancel</button>
+                    <button class="danger" @onclick="ClearAsync" disabled="@_busy">
+                        @(_busy ? "Removing…" : "Remove graph")
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private enum ViewMode
+    {
+        Map,
+        Network,
+        Table
+    }
+
+    private static readonly PlaceKind[] Kinds =
+    [
+        PlaceKind.Continent,
+        PlaceKind.Country,
+        PlaceKind.City,
+        PlaceKind.Landmark
+    ];
+
+    private GeoRepository? _repo;
+    private GeoGraph? _graph;
+    private int _graphSeed = GraphBuilder.DefaultSeed;
+    private bool _graphBuilding;
+    private string? _loadError;
+    private string? _notice;
+    private bool _busy;
+    private bool _confirmClear;
+
+    private ViewMode _view = ViewMode.Map;
+    private string _search = string.Empty;
+    private readonly HashSet<string> _continentFilter = new(StringComparer.Ordinal);
+    private readonly HashSet<PlaceKind> _kindFilter = [.. Kinds];
+    private bool _showHierarchy = true;
+    private bool _showBorders = true;
+    private bool _showNear = true;
+    private string? _selectedId;
+    private IReadOnlySet<string> _visibleIds = new HashSet<string>();
+
+    private bool HasData => _repo is not null
+                            && _repo.Continents.Count + _repo.Countries.Count
+                            + _repo.Cities.Count + _repo.Landmarks.Count > 0;
+
+    private int PlaceCount => _repo is null
+        ? 0
+        : _repo.Continents.Count + _repo.Countries.Count + _repo.Cities.Count + _repo.Landmarks.Count;
+
+    private string ViewHint => _view switch
+    {
+        ViewMode.Map => "Scroll to zoom · drag to pan · click a marker for details",
+        ViewMode.Network => "Click a node to explore relationships · drag to pan",
+        _ => "Click a column to sort · click a row for details"
+    };
+
+    // ------------------------------------------------------------- lifecycle
+
+    protected override async Task OnInitializedAsync() => await LoadInitialAsync();
+
+    private async Task LoadInitialAsync()
+    {
+        _busy = true;
+        _loadError = null;
+
+        try
+        {
+            await LoadSnapshotAsync();
+        }
+        catch (Exception ex)
+        {
+            _repo = null;
+            _loadError = Describe(ex);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (_repo is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        _loadError = null;
+
+        try
+        {
+            await LoadSnapshotAsync();
+            _notice = "Reloaded from Neo4j.";
+        }
+        catch (Exception ex)
+        {
+            _loadError = Describe(ex);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>Reads Neo4j, rebuilds the repository, filters and any open layout.</summary>
+    private async Task LoadSnapshotAsync()
+    {
+        var previous = _repo;
+        var snapshot = await Store.LoadAsync();
+        _repo = new GeoRepository(snapshot);
+
+        // Keep the user's continent selection and enable continents that appear
+        // for the first time (on the very first load this selects everything).
+        var knownContinents = previous?.Continents
+            .Select(continent => continent.Code)
+            .ToHashSet(StringComparer.Ordinal) ?? [];
+
+        _continentFilter.IntersectWith(_repo.Continents.Select(continent => continent.Code));
+        foreach (var continent in _repo.Continents)
+        {
+            if (!knownContinents.Contains(continent.Code))
+            {
+                _continentFilter.Add(continent.Code);
+            }
+        }
+
+        var previousPositions = _graph?.Nodes.ToDictionary(node => node.Id, node => (node.X, node.Y));
+        _graph = null;
+        RefreshVisible();
+
+        if (_selectedId is not null && !_visibleIds.Contains(_selectedId))
+        {
+            _selectedId = null;
+        }
+
+        if (_view == ViewMode.Network && HasData)
+        {
+            await BuildGraphAsync(previousPositions);
+        }
+    }
+
+    private async Task SeedAsync()
+    {
+        _busy = true;
+        _loadError = null;
+
+        try
+        {
+            await Store.SeedAsync();
+            await LoadSnapshotAsync();
+            _notice = $"Seeded the world atlas: {_repo!.Continents.Count} continents, " +
+                      $"{_repo.Countries.Count} countries, {_repo.Cities.Count} cities, " +
+                      $"{_repo.Landmarks.Count} landmarks and {_repo.Borders.Count} land borders.";
+        }
+        catch (Exception ex)
+        {
+            _loadError = Describe(ex);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ClearAsync()
+    {
+        _confirmClear = false;
+        _busy = true;
+        _loadError = null;
+
+        try
+        {
+            await Store.ClearAsync();
+            _selectedId = null;
+            await LoadSnapshotAsync();
+            _notice = "The geolocation graph was removed from Neo4j.";
+        }
+        catch (Exception ex)
+        {
+            _loadError = Describe(ex);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void CloseConfirm() => _confirmClear = false;
+
+    // ----------------------------------------------------------------- views
+
+    private async Task SetViewAsync(ViewMode view)
+    {
+        _view = view;
+
+        if (view == ViewMode.Network)
+        {
+            await EnsureGraphAsync();
+        }
+    }
+
+    private async Task EnsureGraphAsync()
+    {
+        if (_graph is not null || _graphBuilding || !HasData)
+        {
+            return;
+        }
+
+        await BuildGraphAsync();
+    }
+
+    private async Task RelayoutAsync()
+    {
+        _graphSeed = Random.Shared.Next();
+        _graph = null;
+        await BuildGraphAsync();
+    }
+
+    private async Task BuildGraphAsync(
+        IReadOnlyDictionary<string, (double X, double Y)>? previousPositions = null)
+    {
+        if (_repo is null)
+        {
+            return;
+        }
+
+        var repo = _repo;
+        var seed = _graphSeed;
+        _graphBuilding = true;
+        StateHasChanged();
+
+        try
+        {
+            _graph = await Task.Run(() => GraphBuilder.Build(repo, seed, previousPositions));
+        }
+        catch (Exception ex)
+        {
+            _loadError = Describe(ex);
+        }
+        finally
+        {
+            _graphBuilding = false;
+        }
+    }
+
+    // ------------------------------------------------------------- selection
+
+    private async Task SelectAsync(string? id)
+    {
+        _selectedId = id;
+
+        // Selecting from a table row or a detail chip should reveal the place.
+        if (id is not null && !_visibleIds.Contains(id))
+        {
+            RevealPlace(id);
+        }
+
+        await Task.CompletedTask;
+    }
+
+    private async Task CloseDetailsAsync() => await SelectAsync(null);
+
+    /// <summary>Clears filters that hide a place reached through the details panel.</summary>
+    private void RevealPlace(string id)
+    {
+        try
+        {
+            switch (GeoIds.KindOf(id))
+            {
+                case PlaceKind.Continent:
+                    _continentFilter.Add(GeoIds.RawId(id));
+                    _kindFilter.Add(PlaceKind.Continent);
+                    break;
+
+                case PlaceKind.Country when _repo?.FindCountry(GeoIds.RawId(id)) is { } country:
+                    _continentFilter.Add(country.ContinentCode);
+                    _kindFilter.Add(PlaceKind.Country);
+                    break;
+
+                case PlaceKind.City when _repo?.FindCity(GeoIds.RawId(id)) is { } city
+                                        && _repo.FindCountry(city.CountryIso2) is { } cityCountry:
+                    _continentFilter.Add(cityCountry.ContinentCode);
+                    _kindFilter.Add(PlaceKind.City);
+                    break;
+
+                case PlaceKind.Landmark when _repo?.FindLandmark(GeoIds.RawId(id)) is { } landmark
+                                             && _repo.FindCity(landmark.CityId) is { } landmarkCity
+                                             && _repo.FindCountry(landmarkCity.CountryIso2) is { } landmarkCountry:
+                    _continentFilter.Add(landmarkCountry.ContinentCode);
+                    _kindFilter.Add(PlaceKind.Landmark);
+                    break;
+            }
+
+            RefreshVisible();
+        }
+        catch (ArgumentException)
+        {
+            // Unknown id: nothing to reveal.
+        }
+    }
+
+    // --------------------------------------------------------------- filters
+
+    private void OnSearchInput(ChangeEventArgs args)
+    {
+        _search = args.Value?.ToString() ?? string.Empty;
+        RefreshVisible();
+        DropHiddenSelection();
+    }
+
+    private void ToggleContinent(string code, bool isChecked)
+    {
+        if (isChecked)
+        {
+            _continentFilter.Add(code);
+        }
+        else
+        {
+            _continentFilter.Remove(code);
+        }
+
+        RefreshVisible();
+        DropHiddenSelection();
+    }
+
+    private void ToggleKind(PlaceKind kind)
+    {
+        if (!_kindFilter.Add(kind))
+        {
+            _kindFilter.Remove(kind);
+        }
+
+        RefreshVisible();
+        DropHiddenSelection();
+    }
+
+    private void ResetFilters()
+    {
+        if (_repo is null)
+        {
+            return;
+        }
+
+        _search = string.Empty;
+        _continentFilter.Clear();
+        foreach (var continent in _repo.Continents)
+        {
+            _continentFilter.Add(continent.Code);
+        }
+
+        _kindFilter.Clear();
+        foreach (var kind in Kinds)
+        {
+            _kindFilter.Add(kind);
+        }
+
+        _showHierarchy = true;
+        _showBorders = true;
+        _showNear = true;
+        _selectedId = null;
+        RefreshVisible();
+    }
+
+    private void DropHiddenSelection()
+    {
+        if (_selectedId is not null && !_visibleIds.Contains(_selectedId))
+        {
+            _selectedId = null;
+        }
+    }
+
+    private void RefreshVisible() => _visibleIds = BuildVisibleIds();
+
+    private IReadOnlySet<string> BuildVisibleIds()
+    {
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        if (_repo is null)
+        {
+            return ids;
+        }
+
+        foreach (var continent in _repo.Continents)
+        {
+            var id = GeoIds.Continent(continent.Code);
+            if (IsVisible(id))
+            {
+                ids.Add(id);
+            }
+        }
+
+        foreach (var country in _repo.Countries)
+        {
+            var id = GeoIds.Country(country.Iso2);
+            if (IsVisible(id))
+            {
+                ids.Add(id);
+            }
+        }
+
+        foreach (var city in _repo.Cities)
+        {
+            var id = GeoIds.City(city.Id);
+            if (IsVisible(id))
+            {
+                ids.Add(id);
+            }
+        }
+
+        foreach (var landmark in _repo.Landmarks)
+        {
+            var id = GeoIds.Landmark(landmark.Id);
+            if (IsVisible(id))
+            {
+                ids.Add(id);
+            }
+        }
+
+        return ids;
+    }
+
+    private bool IsVisible(string id)
+    {
+        if (_repo is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var raw = GeoIds.RawId(id);
+
+            switch (GeoIds.KindOf(id))
+            {
+                case PlaceKind.Continent:
+                {
+                    var continent = _repo.FindContinent(raw);
+                    return continent is not null
+                           && _kindFilter.Contains(PlaceKind.Continent)
+                           && _continentFilter.Contains(continent.Code)
+                           && MatchesSearch(id);
+                }
+
+                case PlaceKind.Country:
+                {
+                    var country = _repo.FindCountry(raw);
+                    return country is not null
+                           && _kindFilter.Contains(PlaceKind.Country)
+                           && _continentFilter.Contains(country.ContinentCode)
+                           && MatchesSearch(id);
+                }
+
+                case PlaceKind.City:
+                {
+                    var city = _repo.FindCity(raw);
+                    var country = city is null ? null : _repo.CountryOf(city);
+                    return city is not null
+                           && country is not null
+                           && _kindFilter.Contains(PlaceKind.City)
+                           && _continentFilter.Contains(country.ContinentCode)
+                           && MatchesSearch(id);
+                }
+
+                case PlaceKind.Landmark:
+                {
+                    var landmark = _repo.FindLandmark(raw);
+                    var country = landmark is null ? null : _repo.CountryOf(landmark);
+                    return landmark is not null
+                           && country is not null
+                           && _kindFilter.Contains(PlaceKind.Landmark)
+                           && _continentFilter.Contains(country.ContinentCode)
+                           && MatchesSearch(id);
+                }
+            }
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+
+        return false;
+    }
+
+    private bool MatchesSearch(string id)
+    {
+        var query = _search.Trim();
+        return query.Length == 0
+               || _repo!.SearchText(id).Contains(query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private int KindCount(PlaceKind kind) => _repo is null
+        ? 0
+        : kind switch
+        {
+            PlaceKind.Continent => _repo.Continents.Count,
+            PlaceKind.Country => _repo.Countries.Count,
+            PlaceKind.City => _repo.Cities.Count,
+            _ => _repo.Landmarks.Count
+        };
+
+    private static string KindColor(PlaceKind kind) => kind switch
+    {
+        PlaceKind.Continent => "#93b8f7",
+        PlaceKind.Country => "#8ea2c0",
+        PlaceKind.City => "#2dd4bf",
+        _ => GeoPalette.Landmark
+    };
+
+    private static string Describe(Exception ex) => ex.GetBaseException().Message;
+}

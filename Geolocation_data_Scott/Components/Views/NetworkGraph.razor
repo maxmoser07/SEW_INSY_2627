@@ -1,0 +1,405 @@
+@using System.Globalization
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="network-wrap">
+    <svg @ref="_svg" class="network-svg" viewBox="0 0 1500 950" preserveAspectRatio="xMidYMid meet"
+         role="img" aria-label="Force-directed network of continents, countries, cities and landmarks"
+         @onclick="DeselectAsync">
+        <defs>
+            <pattern id="netGrid" width="46" height="46" patternUnits="userSpaceOnUse">
+                <path d="M46 0H0V46" fill="none" stroke="#142033" stroke-width="1" />
+            </pattern>
+            <radialGradient id="netVignette" cx="50%" cy="45%" r="70%">
+                <stop offset="0%" stop-color="#0b1524" />
+                <stop offset="70%" stop-color="#080d17" />
+                <stop offset="100%" stop-color="#060a11" />
+            </radialGradient>
+        </defs>
+
+        <g transform="@ViewportTransform">
+            <rect x="0" y="0" width="1500" height="950" fill="url(#netVignette)" />
+            <rect x="0" y="0" width="1500" height="950" fill="url(#netGrid)" opacity=".55" />
+
+            @foreach (var edge in VisibleEdges())
+            {
+                var css = EdgeCss(edge);
+                var color = edge.Kind switch
+                {
+                    GeoEdgeKind.Borders => "#c9a227",
+                    GeoEdgeKind.Near => "#fbbf24",
+                    _ => GeoPalette.ForContinent(edge.Source.ContinentCode)
+                };
+
+                @if (edge.Kind == GeoEdgeKind.Borders)
+                {
+                    <path class="@css" d="@Arc(edge.Source, edge.Target)" stroke="@color" />
+                }
+                else
+                {
+                    <line class="@css"
+                          x1="@Fmt.N(edge.Source.X)" y1="@Fmt.N(edge.Source.Y)"
+                          x2="@Fmt.N(edge.Target.X)" y2="@Fmt.N(edge.Target.Y)"
+                          stroke="@color" />
+                }
+            }
+
+            @{
+                var nodes = Graph.Nodes.Where(n => VisibleIds.Contains(n.Id)).ToList();
+                var selected = nodes.FirstOrDefault(n => n.Id == SelectedId);
+            }
+
+            @foreach (var node in nodes.Where(n => n.Id != SelectedId))
+            {
+                @Node(node)
+            }
+
+            @if (selected is not null)
+            {
+                @Node(selected)
+            }
+        </g>
+    </svg>
+
+    <div class="network-controls">
+        <span class="zoom-readout">@Math.Round(_zoom * 100)%</span>
+        <button class="ghost" @onclick="ZoomIn" aria-label="Zoom in" title="Zoom in">+</button>
+        <button class="ghost" @onclick="ZoomOut" aria-label="Zoom out" title="Zoom out">&minus;</button>
+        <button class="ghost" @onclick="ResetView" title="Fit the whole network">Fit</button>
+    </div>
+
+    <div class="network-hint">Click a node to explore its relationships · scroll to zoom · drag to pan</div>
+</div>
+
+@code {
+    private const double Width = GraphBuilder.Width;
+    private const double Height = GraphBuilder.Height;
+
+    [Parameter, EditorRequired] public GeoGraph Graph { get; set; } = default!;
+
+    [Parameter, EditorRequired] public IReadOnlySet<string> VisibleIds { get; set; } = new HashSet<string>();
+
+    [Parameter] public string? SelectedId { get; set; }
+
+    [Parameter] public EventCallback<string?> OnSelect { get; set; }
+
+    [Parameter] public bool ShowBorders { get; set; } = true;
+
+    [Parameter] public bool ShowHierarchy { get; set; } = true;
+
+    [Parameter] public bool ShowNear { get; set; } = true;
+
+    private ElementReference _svg;
+    private IJSObjectReference? _module;
+    private IJSObjectReference? _cleanup;
+    private DotNetObjectReference<NetworkGraph>? _dotNetRef;
+
+    private double _zoom = 1;
+    private (double X, double Y) _focus = (Width / 2, Height / 2);
+    private HashSet<string> _related = new(StringComparer.Ordinal);
+    private GeoGraph? _lastGraph;
+
+    // ------------------------------------------------------------- lifecycle
+
+    protected override void OnParametersSet()
+    {
+        if (!ReferenceEquals(_lastGraph, Graph))
+        {
+            _lastGraph = Graph;
+            _zoom = 1;
+            _focus = (Width / 2, Height / 2);
+        }
+
+        _related = BuildRelated();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "/js/atlas.js");
+            _cleanup = await _module.InvokeAsync<IJSObjectReference>("attach", _svg, _dotNetRef);
+        }
+        catch (JSDisconnectedException)
+        {
+            // circuit gone
+        }
+        catch (InvalidOperationException)
+        {
+            // prerendering
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_cleanup is not null)
+            {
+                await _cleanup.InvokeVoidAsync("dispose");
+                await _cleanup.DisposeAsync();
+            }
+
+            if (_module is not null)
+            {
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // ignore
+        }
+
+        _dotNetRef?.Dispose();
+    }
+
+    // -------------------------------------------------------------- viewport
+
+    private string ViewportTransform =>
+        $"translate({Fmt.N(Width / 2)} {Fmt.N(Height / 2)}) " +
+        $"scale({Fmt.N(_zoom)}) " +
+        $"translate({Fmt.N(-_focus.X)} {Fmt.N(-_focus.Y)})";
+
+    [JSInvokable]
+    public void ZoomAt(double factor, double mapX, double mapY)
+    {
+        var next = Math.Clamp(_zoom * factor, 0.6, 6);
+        if (Math.Abs(next - _zoom) < 0.0001)
+        {
+            return;
+        }
+
+        var ratio = _zoom / next;
+        _focus = (mapX + (_focus.X - mapX) * ratio, mapY + (_focus.Y - mapY) * ratio);
+        _zoom = next;
+        ClampFocus();
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void PanBy(double dx, double dy)
+    {
+        if (_zoom <= 0.61)
+        {
+            return;
+        }
+
+        _focus = (_focus.X - dx, _focus.Y - dy);
+        ClampFocus();
+        StateHasChanged();
+    }
+
+    private void ZoomIn() => ZoomAt(1.25, _focus.X, _focus.Y);
+
+    private void ZoomOut() => ZoomAt(1 / 1.25, _focus.X, _focus.Y);
+
+    private void ResetView()
+    {
+        _zoom = 1;
+        _focus = (Width / 2, Height / 2);
+    }
+
+    private void ClampFocus()
+    {
+        var halfW = Width / (2 * _zoom);
+        var halfH = Height / (2 * _zoom);
+        _focus = (
+            Math.Clamp(_focus.X, Math.Min(halfW, Width / 2), Math.Max(Width - halfW, Width / 2)),
+            Math.Clamp(_focus.Y, Math.Min(halfH, Height / 2), Math.Max(Height - halfH, Height / 2)));
+    }
+
+    // ------------------------------------------------------------- selection
+
+    private async Task SelectAsync(GeoGraphNode node)
+    {
+        _focus = (node.X, node.Y);
+        _zoom = Math.Max(_zoom, 1.2);
+        ClampFocus();
+        await OnSelect.InvokeAsync(node.Id);
+    }
+
+    private async Task DeselectAsync()
+    {
+        if (SelectedId is not null)
+        {
+            await OnSelect.InvokeAsync(null);
+        }
+    }
+
+    private HashSet<string> BuildRelated()
+    {
+        var related = new HashSet<string>(StringComparer.Ordinal);
+        if (Graph.Find(SelectedId) is not { } node)
+        {
+            return related;
+        }
+
+        related.Add(node.Id);
+        foreach (var neighbour in Graph.Neighbours(node))
+        {
+            related.Add(neighbour.Id);
+        }
+
+        return related;
+    }
+
+    private bool IsFocusId(string id) => id == SelectedId || _related.Contains(id);
+
+    // ----------------------------------------------------------------- nodes
+
+    private RenderFragment Node(GeoGraphNode node) => @<g class="@NodeCss(node)"
+        style="--c:@node.Fill"
+        transform="translate(@Fmt.N(node.X) @Fmt.N(node.Y))"
+        @onclick="() => SelectAsync(node)" @onclick:stopPropagation="true">
+        <title>@NodeTitle(node)</title>
+
+        @if (node.IsContinent)
+        {
+            <rect class="hit" x="@Fmt.N(-node.BoxWidth / 2 - 6)" y="@Fmt.N(-node.BoxHeight / 2 - 6)"
+                  width="@Fmt.N(node.BoxWidth + 12)" height="@Fmt.N(node.BoxHeight + 12)" rx="18" />
+            <rect class="cont-box" x="@Fmt.N(-node.BoxWidth / 2)" y="@Fmt.N(-node.BoxHeight / 2)"
+                  width="@Fmt.N(node.BoxWidth)" height="@Fmt.N(node.BoxHeight)" rx="14" />
+            <g class="label-wrap" transform="scale(@LabelScale)">
+                <text class="cont-label" y="4">@node.Label.ToUpperInvariant()</text>
+            </g>
+        }
+        else if (node.IsCountry)
+        {
+            <rect class="hit" x="@Fmt.N(-node.BoxWidth / 2 - 5)" y="@Fmt.N(-node.BoxHeight / 2 - 5)"
+                  width="@Fmt.N(node.BoxWidth + 10)" height="@Fmt.N(node.BoxHeight + 10)" rx="11" />
+            <rect class="country-box" x="@Fmt.N(-node.BoxWidth / 2)" y="@Fmt.N(-node.BoxHeight / 2)"
+                  width="@Fmt.N(node.BoxWidth)" height="@Fmt.N(node.BoxHeight)" rx="8" />
+            <g class="label-wrap" transform="scale(@LabelScale)">
+                <text class="country-label" y="3.8">@node.Label</text>
+            </g>
+        }
+        else if (node.IsCity)
+        {
+            <circle class="hit" r="@Fmt.N((node.Radius + 6) * ScreenScale)" />
+            @if (node.IsCapital)
+            {
+                <circle class="capital-ring" r="@Fmt.N((node.Radius + 2.4) * ScreenScale)" />
+            }
+            <circle class="city-dot" r="@Fmt.N(node.Radius * ScreenScale)" />
+            <g class="label-wrap" transform="scale(@LabelScale)">
+                <text class="@CityLabelCss(node)" y="@Fmt.N(-(node.Radius * Math.Sqrt(_zoom) + 5))">@node.Label</text>
+            </g>
+        }
+        else
+        {
+            <circle class="hit" r="@Fmt.N(11 * ScreenScale)" />
+            <g transform="scale(@Fmt.N(ScreenScale))">
+                <path class="landmark-diamond" d="M0 -5.5 L5.5 0 L0 5.5 L-5.5 0 Z" />
+            </g>
+            <g class="label-wrap" transform="scale(@LabelScale)">
+                <text class="@LandmarkLabelCss(node)" y="@Fmt.N(-(5.5 * Math.Sqrt(_zoom) + 5))">@node.Label</text>
+            </g>
+        }
+    </g>;
+
+    private string NodeCss(GeoGraphNode node)
+    {
+        var css = "gnode " + node.Kind.ToString().ToLowerInvariant();
+        if (node.Id == SelectedId)
+        {
+            return css + " sel";
+        }
+
+        if (SelectedId is not null)
+        {
+            css += _related.Contains(node.Id) ? " near" : " dim";
+        }
+
+        if (node.IsCity && node.IsCapital)
+        {
+            css += " capital";
+        }
+
+        return css;
+    }
+
+    private string CityLabelCss(GeoGraphNode node) =>
+        "city-label" + (IsFocusId(node.Id) || _zoom >= 1.55 || node.Population >= 10_000_000 ? " on" : string.Empty);
+
+    private string LandmarkLabelCss(GeoGraphNode node) =>
+        "landmark-label" + (IsFocusId(node.Id) || _zoom >= 1.9 ? " on" : string.Empty);
+
+    private double ScreenScale => 1 / Math.Sqrt(_zoom);
+
+    private string LabelScale => Fmt.N(1 / _zoom);
+
+    private string NodeTitle(GeoGraphNode node) => node.Kind switch
+    {
+        PlaceKind.Continent => $"{node.Label} · continent",
+        PlaceKind.Country => $"{node.Label} · country",
+        PlaceKind.City => $"{node.Label} · city · {Fmt.Population(node.Population)}",
+        _ => $"{node.Label} · landmark"
+    };
+
+    // ----------------------------------------------------------------- edges
+
+    private IEnumerable<GeoGraphEdge> VisibleEdges()
+    {
+        foreach (var edge in Graph.Edges)
+        {
+            if (!VisibleIds.Contains(edge.Source.Id) || !VisibleIds.Contains(edge.Target.Id))
+            {
+                continue;
+            }
+
+            var enabled = edge.Kind switch
+            {
+                GeoEdgeKind.Borders => ShowBorders,
+                GeoEdgeKind.Near => ShowNear,
+                _ => ShowHierarchy
+            };
+
+            if (enabled)
+            {
+                yield return edge;
+            }
+        }
+    }
+
+    private string EdgeCss(GeoGraphEdge edge)
+    {
+        var css = "gedge " + (edge.Kind switch
+        {
+            GeoEdgeKind.Borders => "borders",
+            GeoEdgeKind.Near => "near",
+            GeoEdgeKind.InContinent => "in-continent",
+            _ => "in-country"
+        });
+
+        if (SelectedId is null)
+        {
+            return css;
+        }
+
+        return css + (IsFocusId(edge.Source.Id) || IsFocusId(edge.Target.Id) ? " focus" : " dim");
+    }
+
+    private static string Arc(GeoGraphNode source, GeoGraphNode target)
+    {
+        var dx = target.X - source.X;
+        var dy = target.Y - source.Y;
+        var length = Math.Sqrt(dx * dx + dy * dy);
+        if (length < 0.001)
+        {
+            return $"M{Fmt.N(source.X)} {Fmt.N(source.Y)}L{Fmt.N(target.X)} {Fmt.N(target.Y)}";
+        }
+
+        var nx = -dy / length;
+        var ny = dx / length;
+        var bend = Math.Min(100, length * 0.16);
+        var cx = (source.X + target.X) / 2 + nx * bend;
+        var cy = (source.Y + target.Y) / 2 + ny * bend;
+        return $"M{Fmt.N(source.X)} {Fmt.N(source.Y)}Q{Fmt.N(cx)} {Fmt.N(cy)} {Fmt.N(target.X)} {Fmt.N(target.Y)}";
+    }
+}

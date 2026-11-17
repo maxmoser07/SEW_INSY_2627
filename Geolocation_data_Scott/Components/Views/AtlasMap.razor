@@ -1,0 +1,727 @@
+@using System.Globalization
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="atlas-wrap">
+    <svg @ref="_svg" class="atlas-svg" viewBox="0 0 1440 720" preserveAspectRatio="xMidYMid meet"
+         role="img" aria-label="World map of the seeded geolocation graph" @onclick="DeselectAsync">
+        <defs>
+            <radialGradient id="oceanGradient" cx="50%" cy="45%" r="72%">
+                <stop offset="0%" stop-color="#0d1a2b" />
+                <stop offset="65%" stop-color="#0a1320" />
+                <stop offset="100%" stop-color="#070b12" />
+            </radialGradient>
+            <linearGradient id="landGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#162335" />
+                <stop offset="100%" stop-color="#101b2a" />
+            </linearGradient>
+        </defs>
+
+        <g transform="@ViewportTransform">
+            <rect class="ocean" x="0" y="0" width="1440" height="720" fill="url(#oceanGradient)" />
+
+            <g class="graticule" aria-hidden="true">
+                @for (var lon = -180; lon <= 180; lon += 30)
+                {
+                    var x = ProjectX(lon);
+                    <line class="@(lon == 0 ? "meridian prime" : "meridian")" x1="@Fmt.N(x)" y1="0" x2="@Fmt.N(x)" y2="720" />
+                }
+                @for (var lat = -60; lat <= 60; lat += 30)
+                {
+                    var y = ProjectY(lat);
+                    <line class="@(lat == 0 ? "parallel equator" : "parallel")" x1="0" y1="@Fmt.N(y)" x2="1440" y2="@Fmt.N(y)" />
+                }
+                <line class="parallel tropic" x1="0" y1="@Fmt.N(ProjectY(23.44))" x2="1440" y2="@Fmt.N(ProjectY(23.44))" />
+                <line class="parallel tropic" x1="0" y1="@Fmt.N(ProjectY(-23.44))" x2="1440" y2="@Fmt.N(ProjectY(-23.44))" />
+                <line class="parallel polar" x1="0" y1="@Fmt.N(ProjectY(66.56))" x2="1440" y2="@Fmt.N(ProjectY(66.56))" />
+                <line class="parallel polar" x1="0" y1="@Fmt.N(ProjectY(-66.56))" x2="1440" y2="@Fmt.N(ProjectY(-66.56))" />
+            </g>
+
+            <g class="land" transform="scale(4)" aria-hidden="true">
+                @foreach (var path in WorldMap.Paths)
+                {
+                    <path d="@path" fill="url(#landGradient)" />
+                }
+            </g>
+
+            @* ------------------------------------------------------------ links *@
+            @if (ShowHierarchy)
+            {
+                @foreach (var country in Repository.Countries)
+                {
+                    var continent = Repository.ContinentOf(country);
+                    if (continent is null
+                        || !IsVisible(GeoIds.Country(country.Iso2))
+                        || !IsVisible(GeoIds.Continent(continent.Code)))
+                    {
+                        continue;
+                    }
+
+                    <line class="@LinkCss("country-continent", GeoIds.Country(country.Iso2), GeoIds.Continent(continent.Code))"
+                          x1="@Fmt.N(ProjectX(country.Lon))" y1="@Fmt.N(ProjectY(country.Lat))"
+                          x2="@Fmt.N(ProjectX(continent.Lon))" y2="@Fmt.N(ProjectY(continent.Lat))"
+                          stroke="@GeoPalette.ForContinent(country.ContinentCode)" />
+                }
+            }
+
+            @if (ShowBorders)
+            {
+                @foreach (var (a, b) in Repository.Borders)
+                {
+                    var left = Repository.FindCountry(a);
+                    var right = Repository.FindCountry(b);
+                    if (left is null || right is null
+                        || !IsVisible(GeoIds.Country(a))
+                        || !IsVisible(GeoIds.Country(b)))
+                    {
+                        continue;
+                    }
+
+                    <path class="@LinkCss("border", GeoIds.Country(a), GeoIds.Country(b))"
+                          d="@Arc(ProjectX(left.Lon), ProjectY(left.Lat), ProjectX(right.Lon), ProjectY(right.Lat))" />
+                }
+            }
+
+            @if (ShowHierarchy)
+            {
+                @foreach (var city in Repository.Cities)
+                {
+                    var country = Repository.CountryOf(city);
+                    if (country is null || !IsVisible(GeoIds.City(city.Id)) || !IsVisible(GeoIds.Country(country.Iso2)))
+                    {
+                        continue;
+                    }
+
+                    var focus = IsFocusId(GeoIds.City(city.Id));
+                    if (_zoom < 1.5 && !focus)
+                    {
+                        continue;
+                    }
+
+                    <line class="@LinkCss("city-country", GeoIds.City(city.Id), GeoIds.Country(country.Iso2))"
+                          x1="@Fmt.N(ProjectX(city.Lon))" y1="@Fmt.N(ProjectY(city.Lat))"
+                          x2="@Fmt.N(ProjectX(country.Lon))" y2="@Fmt.N(ProjectY(country.Lat))"
+                          stroke="@GeoPalette.ForContinent(country.ContinentCode)" />
+                }
+            }
+
+            @if (ShowNear)
+            {
+                @foreach (var landmark in Repository.Landmarks)
+                {
+                    var city = Repository.FindCity(landmark.CityId);
+                    if (city is null || !IsVisible(GeoIds.Landmark(landmark.Id)) || !IsVisible(GeoIds.City(city.Id)))
+                    {
+                        continue;
+                    }
+
+                    if (_zoom < 1.3 && !IsFocusId(GeoIds.Landmark(landmark.Id)))
+                    {
+                        continue;
+                    }
+
+                    <line class="@LinkCss("near", GeoIds.Landmark(landmark.Id), GeoIds.City(city.Id))"
+                          x1="@Fmt.N(ProjectX(landmark.Lon))" y1="@Fmt.N(ProjectY(landmark.Lat))"
+                          x2="@Fmt.N(ProjectX(city.Lon))" y2="@Fmt.N(ProjectY(city.Lat))" />
+                }
+            }
+
+            @* ---------------------------------------------------------- markers *@
+            @{
+                var markers = BuildMarkers();
+                var selectedMarker = markers.FirstOrDefault(m => m.Id == SelectedId);
+            }
+
+            @foreach (var marker in markers.Where(m => m.Id != SelectedId))
+            {
+                @Marker(marker)
+            }
+
+            @if (selectedMarker is not null)
+            {
+                @Marker(selectedMarker)
+            }
+        </g>
+    </svg>
+
+    <div class="map-controls">
+        <span class="zoom-readout">@Math.Round(_zoom * 100)%</span>
+        <button class="ghost" @onclick="ZoomIn" aria-label="Zoom in" title="Zoom in">+</button>
+        <button class="ghost" @onclick="ZoomOut" aria-label="Zoom out" title="Zoom out">&minus;</button>
+        <button class="ghost" @onclick="ResetView" title="Back to the whole world">World</button>
+    </div>
+
+    <div class="continent-jumps">
+        @foreach (var continent in Repository.Continents.OrderBy(c => PaletteIndex(c.Code)))
+        {
+            <button class="jump" style="--c:@GeoPalette.ForContinent(continent.Code)"
+                    @onclick="() => FocusContinentAsync(continent)"
+                    title="Jump to @continent.Name">
+                <span class="dot"></span>@continent.Name
+            </button>
+        }
+    </div>
+
+    <div class="map-hint">Scroll to zoom · drag to pan · click a marker for details</div>
+</div>
+
+@code {
+    private const double Width = 1440d;
+    private const double Height = 720d;
+
+    [Parameter, EditorRequired] public GeoRepository Repository { get; set; } = default!;
+
+    [Parameter, EditorRequired] public IReadOnlySet<string> VisibleIds { get; set; } = new HashSet<string>();
+
+    [Parameter] public string? SelectedId { get; set; }
+
+    [Parameter] public EventCallback<string?> OnSelect { get; set; }
+
+    [Parameter] public bool ShowBorders { get; set; } = true;
+
+    [Parameter] public bool ShowHierarchy { get; set; } = true;
+
+    [Parameter] public bool ShowNear { get; set; } = true;
+
+    private ElementReference _svg;
+    private IJSObjectReference? _module;
+    private IJSObjectReference? _cleanup;
+    private DotNetObjectReference<AtlasMap>? _dotNetRef;
+
+    private double _zoom = 1;
+    private (double X, double Y) _focus = (Width / 2, Height / 2);
+    private HashSet<string> _related = new(StringComparer.Ordinal);
+
+    private sealed record MapMarker(
+        string Id,
+        PlaceKind Kind,
+        double X,
+        double Y,
+        string Label,
+        string Color,
+        long Population,
+        bool IsCapital,
+        string Tooltip);
+
+    // ------------------------------------------------------------- lifecycle
+
+    protected override void OnParametersSet() => _related = BuildRelated();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "/js/atlas.js");
+            _cleanup = await _module.InvokeAsync<IJSObjectReference>("attach", _svg, _dotNetRef);
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit went away; nothing to clean up.
+        }
+        catch (InvalidOperationException)
+        {
+            // Prerendering: the element is not in a live document yet.
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_cleanup is not null)
+            {
+                await _cleanup.InvokeVoidAsync("dispose");
+                await _cleanup.DisposeAsync();
+            }
+
+            if (_module is not null)
+            {
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // ignore
+        }
+
+        _dotNetRef?.Dispose();
+    }
+
+    // -------------------------------------------------------------- viewport
+
+    private string ViewportTransform =>
+        $"translate({Fmt.N(Width / 2)} {Fmt.N(Height / 2)}) " +
+        $"scale({Fmt.N(_zoom)}) " +
+        $"translate({Fmt.N(-_focus.X)} {Fmt.N(-_focus.Y)})";
+
+    private static double ProjectX(double lon) => (lon + 180) * 4;
+
+    private static double ProjectY(double lat) => (90 - Math.Clamp(lat, -89.4, 89.4)) * 4;
+
+    /// <summary>Zooms towards a point in map coordinates (called from JS wheel events).</summary>
+    [JSInvokable]
+    public void ZoomAt(double factor, double mapX, double mapY)
+    {
+        var next = Math.Clamp(_zoom * factor, 1, 10);
+        if (Math.Abs(next - _zoom) < 0.0001)
+        {
+            return;
+        }
+
+        var ratio = _zoom / next;
+        _focus = (mapX + (_focus.X - mapX) * ratio, mapY + (_focus.Y - mapY) * ratio);
+        _zoom = next;
+
+        if (_zoom <= 1.001)
+        {
+            _zoom = 1;
+            _focus = (Width / 2, Height / 2);
+        }
+
+        ClampFocus();
+        StateHasChanged();
+    }
+
+    /// <summary>Drags the map (called from JS pointer events).</summary>
+    [JSInvokable]
+    public void PanBy(double dx, double dy)
+    {
+        if (_zoom <= 1.001)
+        {
+            return;
+        }
+
+        _focus = (_focus.X - dx, _focus.Y - dy);
+        ClampFocus();
+        StateHasChanged();
+    }
+
+    private void ZoomIn() => ZoomAt(1.3, _focus.X, _focus.Y);
+
+    private void ZoomOut() => ZoomAt(1 / 1.3, _focus.X, _focus.Y);
+
+    private void ResetView()
+    {
+        _zoom = 1;
+        _focus = (Width / 2, Height / 2);
+    }
+
+    private async Task FocusContinentAsync(Continent continent)
+    {
+        var zoom = continent.Code switch
+        {
+            "EUR" => 4.2,
+            "ASI" => 2.4,
+            "AFR" => 2.6,
+            "NAM" => 2.4,
+            "SAM" => 2.7,
+            "OCE" => 2.8,
+            _ => 1.9
+        };
+
+        _zoom = zoom;
+        _focus = (ProjectX(continent.Lon), ProjectY(continent.Lat));
+        ClampFocus();
+        await OnSelect.InvokeAsync(GeoIds.Continent(continent.Code));
+    }
+
+    private void ClampFocus()
+    {
+        var halfW = Width / (2 * _zoom);
+        var halfH = Height / (2 * _zoom);
+        _focus = (
+            Math.Clamp(_focus.X, Math.Min(halfW, Width / 2), Math.Max(Width - halfW, Width / 2)),
+            Math.Clamp(_focus.Y, Math.Min(halfH, Height / 2), Math.Max(Height - halfH, Height / 2)));
+    }
+
+    // ------------------------------------------------------------- selection
+
+    private async Task SelectAsync(MapMarker marker)
+    {
+        _focus = (marker.X, marker.Y);
+        _zoom = Math.Max(_zoom, 1.45);
+        ClampFocus();
+        await OnSelect.InvokeAsync(marker.Id);
+    }
+
+    private async Task DeselectAsync()
+    {
+        if (SelectedId is not null)
+        {
+            await OnSelect.InvokeAsync(null);
+        }
+    }
+
+    private HashSet<string> BuildRelated()
+    {
+        var related = new HashSet<string>(StringComparer.Ordinal);
+        if (SelectedId is null)
+        {
+            return related;
+        }
+
+        try
+        {
+            switch (GeoIds.KindOf(SelectedId))
+            {
+                case PlaceKind.Continent:
+                    AddContinent(GeoIds.RawId(SelectedId), related);
+                    break;
+
+                case PlaceKind.Country:
+                    AddCountry(GeoIds.RawId(SelectedId), related);
+                    break;
+
+                case PlaceKind.City:
+                    AddCity(GeoIds.RawId(SelectedId), related);
+                    break;
+
+                case PlaceKind.Landmark:
+                    AddLandmark(GeoIds.RawId(SelectedId), related);
+                    break;
+            }
+        }
+        catch (ArgumentException)
+        {
+            // Unknown id: treat it as nothing selected.
+        }
+
+        return related;
+    }
+
+    private void AddContinent(string code, HashSet<string> related)
+    {
+        foreach (var country in Repository.CountriesIn(code))
+        {
+            related.Add(GeoIds.Country(country.Iso2));
+            related.Add(GeoIds.Continent(code));
+
+            foreach (var city in Repository.CitiesIn(country.Iso2))
+            {
+                related.Add(GeoIds.City(city.Id));
+
+                foreach (var landmark in Repository.LandmarksNear(city.Id))
+                {
+                    related.Add(GeoIds.Landmark(landmark.Id));
+                }
+            }
+        }
+    }
+
+    private void AddCountry(string iso2, HashSet<string> related)
+    {
+        related.Add(GeoIds.Country(iso2));
+
+        if (Repository.FindCountry(iso2) is { } country)
+        {
+            related.Add(GeoIds.Continent(country.ContinentCode));
+        }
+
+        foreach (var neighbour in Repository.BordersOf(iso2))
+        {
+            related.Add(GeoIds.Country(neighbour.Iso2));
+        }
+
+        foreach (var city in Repository.CitiesIn(iso2))
+        {
+            related.Add(GeoIds.City(city.Id));
+
+            foreach (var landmark in Repository.LandmarksNear(city.Id))
+            {
+                related.Add(GeoIds.Landmark(landmark.Id));
+            }
+        }
+    }
+
+    private void AddCity(string cityId, HashSet<string> related)
+    {
+        related.Add(GeoIds.City(cityId));
+
+        if (Repository.FindCity(cityId) is not { } city)
+        {
+            return;
+        }
+
+        related.Add(GeoIds.Country(city.CountryIso2));
+
+        if (Repository.FindCountry(city.CountryIso2) is { } country)
+        {
+            related.Add(GeoIds.Continent(country.ContinentCode));
+        }
+
+        foreach (var landmark in Repository.LandmarksNear(cityId))
+        {
+            related.Add(GeoIds.Landmark(landmark.Id));
+        }
+    }
+
+    private void AddLandmark(string landmarkId, HashSet<string> related)
+    {
+        related.Add(GeoIds.Landmark(landmarkId));
+
+        if (Repository.FindLandmark(landmarkId) is not { } landmark)
+        {
+            return;
+        }
+
+        related.Add(GeoIds.City(landmark.CityId));
+
+        if (Repository.FindCity(landmark.CityId) is not { } city)
+        {
+            return;
+        }
+
+        related.Add(GeoIds.Country(city.CountryIso2));
+
+        if (Repository.FindCountry(city.CountryIso2) is { } country)
+        {
+            related.Add(GeoIds.Continent(country.ContinentCode));
+        }
+    }
+
+    private bool IsFocusId(string id) =>
+        id == SelectedId || _related.Contains(id);
+
+    private bool IsVisible(string id) => VisibleIds.Contains(id);
+
+    // --------------------------------------------------------------- markers
+
+    private List<MapMarker> BuildMarkers()
+    {
+        var markers = new List<MapMarker>(Repository.Continents.Count + Repository.Countries.Count
+                                          + Repository.Cities.Count + Repository.Landmarks.Count);
+
+        foreach (var continent in Repository.Continents)
+        {
+            var id = GeoIds.Continent(continent.Code);
+            if (!IsVisible(id))
+            {
+                continue;
+            }
+
+            var countries = Repository.CountriesIn(continent.Code);
+            var cities = Repository.CitiesInContinent(continent.Code);
+            markers.Add(new MapMarker(
+                id,
+                PlaceKind.Continent,
+                ProjectX(continent.Lon),
+                ProjectY(continent.Lat),
+                continent.Name,
+                GeoPalette.ForContinent(continent.Code),
+                0,
+                false,
+                $"{continent.Name} · {countries.Count} countries · {cities.Count} cities · {Fmt.Population(Repository.PopulationOf(continent))} people"));
+        }
+
+        foreach (var country in Repository.Countries)
+        {
+            var id = GeoIds.Country(country.Iso2);
+            if (!IsVisible(id))
+            {
+                continue;
+            }
+
+            markers.Add(new MapMarker(
+                id,
+                PlaceKind.Country,
+                ProjectX(country.Lon),
+                ProjectY(country.Lat),
+                country.Iso2,
+                GeoPalette.ForContinent(country.ContinentCode),
+                country.Population,
+                false,
+                $"{country.Name} · capital {country.Capital} · {Fmt.Population(country.Population)} · {Fmt.Area(country.AreaKm2)}"));
+        }
+
+        foreach (var city in Repository.Cities)
+        {
+            var id = GeoIds.City(city.Id);
+            if (!IsVisible(id))
+            {
+                continue;
+            }
+
+            var country = Repository.CountryOf(city);
+            var color = GeoPalette.ForContinent(country?.ContinentCode);
+            var capital = city.IsCapital ? " · capital" : string.Empty;
+            markers.Add(new MapMarker(
+                id,
+                PlaceKind.City,
+                ProjectX(city.Lon),
+                ProjectY(city.Lat),
+                city.Name,
+                color,
+                city.Population,
+                city.IsCapital,
+                $"{city.Name} · {country?.Name}{capital} · {Fmt.Population(city.Population)}"));
+        }
+
+        foreach (var landmark in Repository.Landmarks)
+        {
+            var id = GeoIds.Landmark(landmark.Id);
+            if (!IsVisible(id))
+            {
+                continue;
+            }
+
+            var city = Repository.FindCity(landmark.CityId);
+            markers.Add(new MapMarker(
+                id,
+                PlaceKind.Landmark,
+                ProjectX(landmark.Lon),
+                ProjectY(landmark.Lat),
+                landmark.Name,
+                GeoPalette.Landmark,
+                0,
+                false,
+                $"{landmark.Name} · {landmark.Kind} · near {city?.Name}"));
+        }
+
+        return markers;
+    }
+
+    private RenderFragment Marker(MapMarker marker) => @<g class="@MarkerCss(marker)"
+        style="--c:@marker.Color"
+        transform="translate(@Fmt.N(marker.X) @Fmt.N(marker.Y))"
+        @onclick="() => SelectAsync(marker)" @onclick:stopPropagation="true">
+        <title>@marker.Tooltip</title>
+
+        @if (marker.Kind == PlaceKind.Continent)
+        {
+            <circle class="hit" r="@Fmt.N(16 * ScreenScale)" />
+            <circle class="cont-ring" r="@Fmt.N(5.5 * ScreenScale)" />
+            <circle class="cont-glow" r="@Fmt.N(12 * ScreenScale)" />
+            <g class="label-wrap" transform="scale(@LabelScale)">
+                <text class="continent-label" y="@Fmt.N(-(5.5 * Math.Sqrt(_zoom) + 9))" fill="@marker.Color">@marker.Label.ToUpperInvariant()</text>
+            </g>
+        }
+        else if (marker.Kind == PlaceKind.Country)
+        {
+            <circle class="hit" r="@Fmt.N(11 * ScreenScale)" />
+            <circle class="country-dot" r="@Fmt.N(3.4 * ScreenScale)" stroke="@marker.Color" />
+            <g class="label-wrap" transform="scale(@LabelScale)">
+                <text class="@CountryLabelCss(marker)" y="@Fmt.N(-(3.4 * Math.Sqrt(_zoom) + 5))">@marker.Label</text>
+            </g>
+        }
+        else if (marker.Kind == PlaceKind.City)
+        {
+            var radius = CityRadius(marker.Population);
+            <circle class="hit" r="@Fmt.N((radius + 7) * ScreenScale)" />
+            @if (marker.IsCapital)
+            {
+                <circle class="capital-ring" r="@Fmt.N((radius + 2.6) * ScreenScale)" />
+            }
+            <circle class="city-dot" r="@Fmt.N(radius * ScreenScale)" fill="@marker.Color" />
+            <g class="label-wrap" transform="scale(@LabelScale)">
+                <text class="@CityLabelCss(marker)" y="@Fmt.N(-(radius * Math.Sqrt(_zoom) + 6))">@marker.Label</text>
+            </g>
+        }
+        else
+        {
+            <circle class="hit" r="@Fmt.N(11 * ScreenScale)" />
+            <g transform="scale(@Fmt.N(ScreenScale))">
+                <path class="landmark-diamond" d="M0 -5 L5 0 L0 5 L-5 0 Z" />
+            </g>
+            <g class="label-wrap" transform="scale(@LabelScale)">
+                <text class="@LandmarkLabelCss(marker)" y="@Fmt.N(-(5 * Math.Sqrt(_zoom) + 5))">@marker.Label</text>
+            </g>
+        }
+    </g>;
+
+    private string MarkerCss(MapMarker marker)
+    {
+        var css = "marker " + marker.Kind.ToString().ToLowerInvariant();
+        if (marker.Id == SelectedId)
+        {
+            return css + " sel";
+        }
+
+        if (SelectedId is not null)
+        {
+            css += _related.Contains(marker.Id) ? " near" : " dim";
+        }
+
+        if (marker.Kind == PlaceKind.City && marker.IsCapital)
+        {
+            css += " capital";
+        }
+
+        return css;
+    }
+
+    private string CountryLabelCss(MapMarker marker) =>
+        "country-label" + (ShowCountryLabel(marker) ? " on" : string.Empty);
+
+    private string CityLabelCss(MapMarker marker) =>
+        "city-label" + (ShowCityLabel(marker) ? " on" : string.Empty);
+
+    private string LandmarkLabelCss(MapMarker marker) =>
+        "landmark-label" + (ShowLandmarkLabel(marker) ? " on" : string.Empty);
+
+    private bool ShowCountryLabel(MapMarker marker) => _zoom >= 1.7 || IsFocusId(marker.Id);
+
+    private bool ShowCityLabel(MapMarker marker) =>
+        IsFocusId(marker.Id)
+        || (_zoom >= 1.35 && marker.Population >= 5_000_000)
+        || _zoom >= 2.2;
+
+    private bool ShowLandmarkLabel(MapMarker marker) => IsFocusId(marker.Id) || _zoom >= 2.5;
+
+    private double ScreenScale => 1 / Math.Sqrt(_zoom);
+
+    private string LabelScale => Fmt.N(1 / _zoom);
+
+    private static double CityRadius(long population) =>
+        2.6 + Math.Min(6.4, Math.Sqrt(population) / 1300d);
+
+    // ----------------------------------------------------------------- links
+
+    private string LinkCss(string kind, string a, string b)
+    {
+        var css = "map-link " + kind;
+        if (SelectedId is null)
+        {
+            return css;
+        }
+
+        return css + (IsFocusId(a) || IsFocusId(b) ? " focus" : " dim");
+    }
+
+    /// <summary>A slightly bowed line reads better than a straight centroid-to-centroid chord.</summary>
+    private static string Arc(double x1, double y1, double x2, double y2)
+    {
+        var dx = x2 - x1;
+        var dy = y2 - y1;
+        var length = Math.Sqrt(dx * dx + dy * dy);
+        if (length < 0.001)
+        {
+            return $"M{Fmt.N(x1)} {Fmt.N(y1)}L{Fmt.N(x2)} {Fmt.N(y2)}";
+        }
+
+        var nx = -dy / length;
+        var ny = dx / length;
+        var bend = Math.Min(64, length * 0.13);
+        var cx = (x1 + x2) / 2 + nx * bend;
+        var cy = (y1 + y2) / 2 + ny * bend;
+        return $"M{Fmt.N(x1)} {Fmt.N(y1)}Q{Fmt.N(cx)} {Fmt.N(cy)} {Fmt.N(x2)} {Fmt.N(y2)}";
+    }
+
+    private static int PaletteIndex(string code)
+    {
+        for (var i = 0; i < GeoPalette.Order.Count; i++)
+        {
+            if (GeoPalette.Order[i] == code)
+            {
+                return i;
+            }
+        }
+
+        return GeoPalette.Order.Count;
+    }
+}

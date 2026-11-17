@@ -1,0 +1,238 @@
+@using System.Globalization
+
+<div class="place-table-wrap">
+    @{
+        var rows = SortedRows().ToList();
+    }
+
+    <table>
+        <thead>
+            <tr>
+                @HeaderCell("name", "Place")
+                @HeaderCell("kind", "Type")
+                @HeaderCell("region", "Location")
+                @HeaderCell("population", "Population", numeric: true)
+                @HeaderCell("area", "Area", numeric: true)
+                @HeaderCell("lat", "Coordinates", numeric: true)
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in rows)
+            {
+                <tr class="@(row.Id == SelectedId ? "sel" : "")" @key="row.Id"
+                    title="Show @row.Name in the details panel"
+                    @onclick="() => SelectAsync(row.Id)">
+                    <td class="place-col">
+                        <span class="kind-dot" style="--c:@row.Color"></span>
+                        <span class="place-name">@row.Name</span>
+                        @if (row.IsCapital)
+                        {
+                            <span class="cap-tag">capital</span>
+                        }
+                    </td>
+                    <td>
+                        <span class="kind-tag @row.KindCss">@GeoPalette.KindLabel(row.Kind)</span>
+                    </td>
+                    <td class="region-col">@row.Region</td>
+                    <td class="num">@(row.Population > 0 ? Fmt.Population(row.Population) : "—")</td>
+                    <td class="num">@(row.AreaKm2 > 0 ? Fmt.Area(row.AreaKm2) : "—")</td>
+                    <td class="num mono">@Fmt.Coordinates(row.Lat, row.Lon)</td>
+                </tr>
+            }
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="3">
+                    @rows.Count place@(rows.Count == 1 ? "" : "s") shown
+                    · @rows.Count(r => r.Kind == PlaceKind.City) cities
+                    · @rows.Count(r => r.Kind == PlaceKind.Landmark) landmarks
+                </td>
+                <td class="num">@Fmt.Population(rows.Where(r => r.Kind == PlaceKind.City).Sum(r => r.Population))</td>
+                <td class="num">@Fmt.Area(rows.Where(r => r.Kind == PlaceKind.Country).Sum(r => r.AreaKm2))</td>
+                <td></td>
+            </tr>
+        </tfoot>
+    </table>
+
+    @if (rows.Count == 0)
+    {
+        <div class="table-empty">No places match the current filters.</div>
+    }
+</div>
+
+@code {
+    private sealed record PlaceRow(
+        string Id,
+        PlaceKind Kind,
+        string Name,
+        string Region,
+        string Color,
+        string KindCss,
+        long Population,
+        double AreaKm2,
+        double Lat,
+        double Lon,
+        bool IsCapital);
+
+    [Parameter, EditorRequired] public GeoRepository Repository { get; set; } = default!;
+
+    [Parameter, EditorRequired] public IReadOnlySet<string> VisibleIds { get; set; } = new HashSet<string>();
+
+    [Parameter] public string? SelectedId { get; set; }
+
+    [Parameter] public EventCallback<string?> OnSelect { get; set; }
+
+    private string _sortKey = "name";
+    private bool _sortAsc = true;
+
+    private async Task SelectAsync(string id) => await OnSelect.InvokeAsync(id);
+
+    private List<PlaceRow> SortedRows()
+    {
+        var rows = NewRows();
+
+        Func<PlaceRow, IComparable> key = _sortKey switch
+        {
+            "kind" => row => (int)row.Kind,
+            "region" => row => row.Region,
+            "population" => row => row.Population,
+            "area" => row => row.AreaKm2,
+            "lat" => row => row.Lat,
+            _ => row => row.Name
+        };
+
+        return (_sortAsc ? rows.OrderBy(key) : rows.OrderByDescending(key)).ToList();
+    }
+
+    private List<PlaceRow> NewRows()
+    {
+        var rows = new List<PlaceRow>(
+            Repository.Continents.Count + Repository.Countries.Count
+            + Repository.Cities.Count + Repository.Landmarks.Count);
+
+        foreach (var continent in Repository.Continents)
+        {
+            var id = GeoIds.Continent(continent.Code);
+            if (!VisibleIds.Contains(id))
+            {
+                continue;
+            }
+
+            var countries = Repository.CountriesIn(continent.Code);
+            rows.Add(new PlaceRow(
+                id,
+                PlaceKind.Continent,
+                continent.Name,
+                $"{countries.Count} countries",
+                GeoPalette.ForContinent(continent.Code),
+                "continent",
+                Repository.PopulationOf(continent),
+                Repository.AreaOf(continent),
+                continent.Lat,
+                continent.Lon,
+                false));
+        }
+
+        foreach (var country in Repository.Countries)
+        {
+            var id = GeoIds.Country(country.Iso2);
+            if (!VisibleIds.Contains(id))
+            {
+                continue;
+            }
+
+            var continent = Repository.ContinentOf(country);
+            rows.Add(new PlaceRow(
+                id,
+                PlaceKind.Country,
+                country.Name,
+                continent is null ? country.Iso2 : $"{continent.Name} · {country.Iso2}",
+                GeoPalette.ForContinent(country.ContinentCode),
+                "country",
+                country.Population,
+                country.AreaKm2,
+                country.Lat,
+                country.Lon,
+                false));
+        }
+
+        foreach (var city in Repository.Cities)
+        {
+            var id = GeoIds.City(city.Id);
+            if (!VisibleIds.Contains(id))
+            {
+                continue;
+            }
+
+            var country = Repository.CountryOf(city);
+            var continent = Repository.ContinentOf(city);
+            var region = string.Join(" · ", new[] { country?.Name, continent?.Name }
+                .Where(part => !string.IsNullOrEmpty(part)));
+
+            rows.Add(new PlaceRow(
+                id,
+                PlaceKind.City,
+                city.Name,
+                region,
+                GeoPalette.ForContinent(country?.ContinentCode),
+                "city",
+                city.Population,
+                0,
+                city.Lat,
+                city.Lon,
+                city.IsCapital));
+        }
+
+        foreach (var landmark in Repository.Landmarks)
+        {
+            var id = GeoIds.Landmark(landmark.Id);
+            if (!VisibleIds.Contains(id))
+            {
+                continue;
+            }
+
+            var city = Repository.FindCity(landmark.CityId);
+            var country = city is null ? null : Repository.CountryOf(city);
+            var region = $"{landmark.Kind} · near {city?.Name}, {country?.Name}";
+
+            rows.Add(new PlaceRow(
+                id,
+                PlaceKind.Landmark,
+                landmark.Name,
+                region,
+                GeoPalette.Landmark,
+                "landmark",
+                0,
+                0,
+                landmark.Lat,
+                landmark.Lon,
+                false));
+        }
+
+        return rows;
+    }
+
+    private void SortBy(string key)
+    {
+        if (_sortKey == key)
+        {
+            _sortAsc = !_sortAsc;
+        }
+        else
+        {
+            _sortKey = key;
+            _sortAsc = true;
+        }
+    }
+
+    private RenderFragment HeaderCell(string key, string label, bool numeric = false)
+    {
+        var css = (numeric ? "num" : string.Empty) + (_sortKey == key ? " sorted" : string.Empty);
+
+        return @<th class="@css" scope="col"
+            aria-sort="@(_sortKey == key ? (_sortAsc ? "ascending" : "descending") : "none")"
+            @onclick="() => SortBy(key)">
+            @label<span class="arrow">@(_sortAsc ? "▲" : "▼")</span>
+        </th>;
+    }
+}

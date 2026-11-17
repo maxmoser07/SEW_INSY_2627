@@ -1,0 +1,443 @@
+@using System.Globalization
+
+@if (_continent is not null)
+{
+    <aside class="details" aria-label="Continent details">
+        <button class="x" @onclick="CloseAsync" aria-label="Close details">×</button>
+        @ContinentDetails(_continent)
+    </aside>
+}
+else if (_country is not null)
+{
+    <aside class="details" aria-label="Country details">
+        <button class="x" @onclick="CloseAsync" aria-label="Close details">×</button>
+        @CountryDetails(_country)
+    </aside>
+}
+else if (_city is not null)
+{
+    <aside class="details" aria-label="City details">
+        <button class="x" @onclick="CloseAsync" aria-label="Close details">×</button>
+        @CityDetails(_city)
+    </aside>
+}
+else if (_landmark is not null)
+{
+    <aside class="details" aria-label="Landmark details">
+        <button class="x" @onclick="CloseAsync" aria-label="Close details">×</button>
+        @LandmarkDetails(_landmark)
+    </aside>
+}
+
+@code {
+    [Parameter, EditorRequired] public GeoRepository Repository { get; set; } = default!;
+
+    [Parameter] public string? SelectedId { get; set; }
+
+    [Parameter] public EventCallback<string?> OnSelect { get; set; }
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private Continent? _continent;
+    private Country? _country;
+    private City? _city;
+    private Landmark? _landmark;
+
+    protected override void OnParametersSet()
+    {
+        _continent = null;
+        _country = null;
+        _city = null;
+        _landmark = null;
+
+        if (SelectedId is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var raw = GeoIds.RawId(SelectedId);
+            switch (GeoIds.KindOf(SelectedId))
+            {
+                case PlaceKind.Continent:
+                    _continent = Repository.FindContinent(raw);
+                    break;
+
+                case PlaceKind.Country:
+                    _country = Repository.FindCountry(raw);
+                    break;
+
+                case PlaceKind.City:
+                    _city = Repository.FindCity(raw);
+                    break;
+
+                case PlaceKind.Landmark:
+                    _landmark = Repository.FindLandmark(raw);
+                    break;
+            }
+        }
+        catch (ArgumentException)
+        {
+            // Unknown id: render nothing.
+        }
+    }
+
+    private async Task CloseAsync() => await OnClose.InvokeAsync();
+
+    // ------------------------------------------------------------- continent
+
+    private RenderFragment ContinentDetails(Continent continent)
+    {
+        var countries = Repository.CountriesIn(continent.Code);
+        var cities = Repository.CitiesInContinent(continent.Code);
+        var landmarks = countries
+            .SelectMany(country => Repository.LandmarksIn(country.Iso2))
+            .OrderBy(landmark => landmark.Name, StringComparer.Ordinal)
+            .ToList();
+        var color = GeoPalette.ForContinent(continent.Code);
+        var population = Repository.PopulationOf(continent);
+        var area = Repository.AreaOf(continent);
+
+        return @<text>
+            <div class="d-head">
+                <div class="avatar" style="--c:@color">@continent.Code</div>
+                <div>
+                    <h3>@continent.Name</h3>
+                    <p>Continent · @countries.Count countries · @cities.Count cities</p>
+                </div>
+            </div>
+
+            <div class="d-badges">
+                <span class="badge" style="--c:@color">@Fmt.Population(population) people</span>
+                <span class="badge ghost">@Fmt.Area(area)</span>
+                <span class="badge ghost">@landmarks.Count landmarks</span>
+            </div>
+
+            <div class="fields">
+                <div><dt>Countries</dt><dd>@countries.Count</dd></div>
+                <div><dt>Cities</dt><dd>@cities.Count</dd></div>
+                <div><dt>Population</dt><dd>@Fmt.Population(population)</dd></div>
+                <div><dt>Area</dt><dd>@Fmt.Area(area)</dd></div>
+                <div class="wide">
+                    <dt>Anchor</dt>
+                    <dd class="small">@Fmt.Coordinates(continent.Lat, continent.Lon)</dd>
+                </div>
+            </div>
+
+            <div class="d-sec">
+                <h4>Countries <span class="n">@countries.Count</span></h4>
+                @foreach (var country in countries)
+                {
+                    @RelatedChip(
+                        GeoIds.Country(country.Iso2),
+                        country.Name,
+                        color,
+                        Fmt.Population(country.Population))
+                }
+            </div>
+
+            <div class="d-sec">
+                <h4>Largest cities <span class="n">@Math.Min(10, cities.Count)</span></h4>
+                @if (cities.Count == 0)
+                {
+                    <span class="none">No cities seeded here.</span>
+                }
+                else
+                {
+                    @foreach (var city in cities.Take(10))
+                    {
+                        @RelatedChip(GeoIds.City(city.Id), city.Name, color, Fmt.Population(city.Population))
+                    }
+                }
+            </div>
+
+            <div class="d-sec">
+                <h4>Landmarks <span class="n">@landmarks.Count</span></h4>
+                @if (landmarks.Count == 0)
+                {
+                    <span class="none">No landmarks seeded here.</span>
+                }
+                else
+                {
+                    @foreach (var landmark in landmarks)
+                    {
+                        @RelatedChip(GeoIds.Landmark(landmark.Id), landmark.Name, GeoPalette.Landmark, landmark.Kind)
+                    }
+                }
+            </div>
+        </text>;
+    }
+
+    // --------------------------------------------------------------- country
+
+    private RenderFragment CountryDetails(Country country)
+    {
+        var continent = Repository.ContinentOf(country);
+        var color = GeoPalette.ForContinent(country.ContinentCode);
+        var capital = Repository.CapitalOf(country);
+        var cities = Repository.CitiesIn(country.Iso2);
+        var neighbours = Repository.BordersOf(country.Iso2);
+        var landmarks = Repository.LandmarksIn(country.Iso2);
+        var density = country.AreaKm2 > 0 ? (long)Math.Round(country.Population / country.AreaKm2) : 0;
+
+        return @<text>
+            <div class="d-head">
+                <div class="avatar" style="--c:@color">@country.Iso2</div>
+                <div>
+                    <h3>@country.Name</h3>
+                    <p>Country · @country.Iso2 · capital @country.Capital</p>
+                </div>
+            </div>
+
+            <div class="d-badges">
+                @if (continent is not null)
+                {
+                    <span class="badge" style="--c:@color">@continent.Name</span>
+                }
+                <span class="badge ghost">@neighbours.Count neighbours</span>
+                <span class="badge ghost">@cities.Count cities</span>
+                <span class="badge ghost">@landmarks.Count landmarks</span>
+            </div>
+
+            <div class="fields">
+                <div><dt>Population</dt><dd>@Fmt.Population(country.Population)</dd></div>
+                <div><dt>Area</dt><dd>@Fmt.Area(country.AreaKm2)</dd></div>
+                <div><dt>Density</dt><dd>@Fmt.People(density) / km²</dd></div>
+                <div><dt>Capital</dt><dd class="small">@country.Capital</dd></div>
+                <div class="wide">
+                    <dt>Coordinates</dt>
+                    <dd class="small">@Fmt.Coordinates(country.Lat, country.Lon)</dd>
+                </div>
+            </div>
+
+            <div class="d-sec">
+                <h4>Capital city</h4>
+                @if (capital is not null)
+                {
+                    @RelatedChip(GeoIds.City(capital.Id), capital.Name, color, Fmt.Population(capital.Population))
+                }
+                else
+                {
+                    <span class="none">No capital city in the seed.</span>
+                }
+            </div>
+
+            <div class="d-sec">
+                <h4>Cities <span class="n">@cities.Count</span></h4>
+                @if (cities.Count == 0)
+                {
+                    <span class="none">No cities seeded for this country.</span>
+                }
+                else
+                {
+                    @foreach (var city in cities)
+                    {
+                        @RelatedChip(
+                            GeoIds.City(city.Id),
+                            city.Name,
+                            color,
+                            city.IsCapital ? "capital" : Fmt.Population(city.Population))
+                    }
+                }
+            </div>
+
+            <div class="d-sec">
+                <h4>Neighbouring countries <span class="n">@neighbours.Count</span></h4>
+                @if (neighbours.Count == 0)
+                {
+                    <span class="none">No seeded land borders.</span>
+                }
+                else
+                {
+                    @foreach (var neighbour in neighbours)
+                    {
+                        @RelatedChip(
+                            GeoIds.Country(neighbour.Iso2),
+                            neighbour.Name,
+                            GeoPalette.ForContinent(neighbour.ContinentCode),
+                            neighbour.Iso2)
+                    }
+                }
+            </div>
+
+            <div class="d-sec">
+                <h4>Landmarks <span class="n">@landmarks.Count</span></h4>
+                @if (landmarks.Count == 0)
+                {
+                    <span class="none">No landmarks seeded for this country.</span>
+                }
+                else
+                {
+                    @foreach (var landmark in landmarks)
+                    {
+                        @RelatedChip(GeoIds.Landmark(landmark.Id), landmark.Name, GeoPalette.Landmark, landmark.Kind)
+                    }
+                }
+            </div>
+        </text>;
+    }
+
+    // ------------------------------------------------------------------ city
+
+    private RenderFragment CityDetails(City city)
+    {
+        var country = Repository.CountryOf(city);
+        var continent = Repository.ContinentOf(city);
+        var color = GeoPalette.ForContinent(country?.ContinentCode);
+        var landmarks = Repository.LandmarksNear(city.Id);
+
+        return @<text>
+            <div class="d-head">
+                <div class="avatar" style="--c:@color">@Initials(city.Name)</div>
+                <div>
+                    <h3>@city.Name</h3>
+                    <p>City · @country?.Name · @continent?.Name</p>
+                </div>
+            </div>
+
+            <div class="d-badges">
+                @if (city.IsCapital)
+                {
+                    <span class="badge" style="--c:@color">Capital city</span>
+                }
+                @if (country is not null)
+                {
+                    <span class="badge ghost">@country.Iso2</span>
+                }
+                <span class="badge ghost">@landmarks.Count landmarks nearby</span>
+            </div>
+
+            <div class="fields">
+                <div><dt>Population</dt><dd>@Fmt.Population(city.Population)</dd></div>
+                <div><dt>Country</dt><dd class="small">@country?.Name</dd></div>
+                <div><dt>Continent</dt><dd class="small">@continent?.Name</dd></div>
+                <div><dt>Status</dt><dd class="small">@(city.IsCapital ? "Capital" : "City")</dd></div>
+                <div class="wide">
+                    <dt>Coordinates</dt>
+                    <dd class="small">@Fmt.Coordinates(city.Lat, city.Lon)</dd>
+                </div>
+            </div>
+
+            <div class="d-sec">
+                <h4>Located in</h4>
+                @if (country is not null)
+                {
+                    @RelatedChip(GeoIds.Country(country.Iso2), country.Name, color, country.Iso2)
+                }
+                @if (continent is not null)
+                {
+                    @RelatedChip(GeoIds.Continent(continent.Code), continent.Name, color, "continent")
+                }
+            </div>
+
+            <div class="d-sec">
+                <h4>Landmarks nearby <span class="n">@landmarks.Count</span></h4>
+                @if (landmarks.Count == 0)
+                {
+                    <span class="none">No landmarks seeded near this city.</span>
+                }
+                else
+                {
+                    @foreach (var landmark in landmarks)
+                    {
+                        var distance = Repository.DistanceToCity(landmark);
+                        @RelatedChip(
+                            GeoIds.Landmark(landmark.Id),
+                            landmark.Name,
+                            GeoPalette.Landmark,
+                            Fmt.Km(distance))
+                    }
+                }
+            </div>
+        </text>;
+    }
+
+    // -------------------------------------------------------------- landmark
+
+    private RenderFragment LandmarkDetails(Landmark landmark)
+    {
+        var city = Repository.FindCity(landmark.CityId);
+        var country = city is null ? null : Repository.CountryOf(city);
+        var continent = country is null ? null : Repository.ContinentOf(country);
+        var color = GeoPalette.ForContinent(country?.ContinentCode);
+        var distance = Repository.DistanceToCity(landmark);
+
+        return @<text>
+            <div class="d-head">
+                <div class="avatar landmark" style="--c:@GeoPalette.Landmark">◆</div>
+                <div>
+                    <h3>@landmark.Name</h3>
+                    <p>Landmark · @landmark.Kind · near @city?.Name</p>
+                </div>
+            </div>
+
+            <div class="d-badges">
+                @if (city is not null)
+                {
+                    <span class="badge" style="--c:@color">@city.Name</span>
+                }
+                @if (country is not null)
+                {
+                    <span class="badge ghost">@country.Name</span>
+                }
+                @if (continent is not null)
+                {
+                    <span class="badge ghost">@continent.Name</span>
+                }
+            </div>
+
+            <p class="d-desc">@landmark.Description</p>
+
+            <div class="fields">
+                <div><dt>Type</dt><dd class="small">@landmark.Kind</dd></div>
+                <div><dt>Distance to city</dt><dd>@Fmt.Km(distance)</dd></div>
+                <div class="wide">
+                    <dt>Coordinates</dt>
+                    <dd class="small">@Fmt.Coordinates(landmark.Lat, landmark.Lon)</dd>
+                </div>
+            </div>
+
+            <div class="d-sec">
+                <h4>Connected places</h4>
+                @if (city is not null)
+                {
+                    @RelatedChip(GeoIds.City(city.Id), city.Name, color, "city")
+                }
+                @if (country is not null)
+                {
+                    @RelatedChip(GeoIds.Country(country.Iso2), country.Name, color, "country")
+                }
+                @if (continent is not null)
+                {
+                    @RelatedChip(GeoIds.Continent(continent.Code), continent.Name, color, "continent")
+                }
+            </div>
+        </text>;
+    }
+
+    // --------------------------------------------------------------- helpers
+
+    private RenderFragment RelatedChip(string id, string label, string color, string? detail = null) => @<button
+        type="button" class="goto" style="--c:@color" title="Select @label"
+        @onclick="() => OnSelect.InvokeAsync(id)">
+        <span class="dot"></span>@label
+        @if (detail is not null)
+        {
+            <span class="sub">@detail</span>
+        }
+    </button>;
+
+    private static string Initials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+        {
+            return "?";
+        }
+
+        return parts.Length == 1
+            ? parts[0][..Math.Min(2, parts[0].Length)].ToUpperInvariant()
+            : string.Concat(parts[0][0], parts[^1][0]).ToUpperInvariant();
+    }
+}
