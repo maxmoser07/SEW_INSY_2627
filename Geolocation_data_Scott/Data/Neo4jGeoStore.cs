@@ -55,8 +55,7 @@ public sealed class Neo4jGeoStore : IGeoStore, IAsyncDisposable
             var cursor = await tx.RunAsync(
                 """
                 MATCH (c:Country)
-                OPTIONAL MATCH (c)-[:IN_CONTINENT]->(k:Continent)
-                WITH c, coalesce(k.code, c.continent) AS continent
+                WITH c, coalesce(head([(c)-[:IN_CONTINENT]->(k:Continent) | k.code]), c.continent) AS continent
                 WHERE continent IS NOT NULL
                 RETURN c.iso2 AS iso2,
                        c.name AS name,
@@ -85,8 +84,7 @@ public sealed class Neo4jGeoStore : IGeoStore, IAsyncDisposable
             var cursor = await tx.RunAsync(
                 """
                 MATCH (t:City)
-                OPTIONAL MATCH (t)-[:IN_COUNTRY]->(c:Country)
-                WITH t, coalesce(c.iso2, t.country) AS country
+                WITH t, coalesce(head([(t)-[:IN_COUNTRY]->(c:Country) | c.iso2]), t.country) AS country
                 WHERE country IS NOT NULL
                 RETURN t.id AS id,
                        t.name AS name,
@@ -113,8 +111,7 @@ public sealed class Neo4jGeoStore : IGeoStore, IAsyncDisposable
             var cursor = await tx.RunAsync(
                 """
                 MATCH (l:Landmark)
-                OPTIONAL MATCH (l)-[:NEAR]->(t:City)
-                WITH l, coalesce(t.id, l.city) AS city
+                WITH l, coalesce(head([(l)-[:NEAR]->(t:City) | t.id]), l.city) AS city
                 WHERE city IS NOT NULL
                 RETURN l.id AS id,
                        l.name AS name,

@@ -13,6 +13,10 @@ if (args.Contains("--export-seed"))
     return;
 }
 
+// Serve the scoped CSS bundle (GeoViz.styles.css) and other build-time assets in every
+// environment. Without this, running outside "Development" gives unstyled components.
+builder.WebHost.UseStaticWebAssets();
+
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 

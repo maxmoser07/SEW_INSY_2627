@@ -149,8 +149,9 @@ button.active {
     color: #08111c;
 }
 
+select,
 input[type="search"] {
-    min-width: 260px;
+    min-width: 180px;
     padding: 5px 10px;
     color: var(--text);
     background: var(--panel-2);

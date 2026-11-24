@@ -1144,7 +1144,7 @@ button:disabled[b-qnp6hitdhv] {
     }
 }
 /* /Components/Views/AtlasMap.razor.rz.scp.css */
-.atlas-wrap[b-8d7p0jac3y] {
+.atlas-wrap[b-n149vmypwy] {
     position: absolute;
     inset: 0;
     overflow: hidden;
@@ -1153,7 +1153,7 @@ button:disabled[b-qnp6hitdhv] {
         #070b12;
 }
 
-.atlas-svg[b-8d7p0jac3y] {
+.atlas-svg[b-n149vmypwy] {
     display: block;
     width: 100%;
     height: 100%;
@@ -1162,47 +1162,47 @@ button:disabled[b-qnp6hitdhv] {
     user-select: none;
 }
 
-.atlas-svg:active[b-8d7p0jac3y] {
+.atlas-svg:active[b-n149vmypwy] {
     cursor: grabbing;
 }
 
 /* ---------------- basemap ---------------- */
 
-.ocean[b-8d7p0jac3y] {
+.ocean[b-n149vmypwy] {
     pointer-events: none;
 }
 
-.graticule line[b-8d7p0jac3y] {
+.graticule line[b-n149vmypwy] {
     stroke: #16253a;
     stroke-width: 1;
     vector-effect: non-scaling-stroke;
     pointer-events: none;
 }
 
-.graticule .parallel[b-8d7p0jac3y] {
+.graticule .parallel[b-n149vmypwy] {
     stroke: #17263c;
 }
 
-.graticule .meridian[b-8d7p0jac3y] {
+.graticule .meridian[b-n149vmypwy] {
     stroke: #152238;
 }
 
-.graticule .equator[b-8d7p0jac3y],
-.graticule .prime[b-8d7p0jac3y] {
+.graticule .equator[b-n149vmypwy],
+.graticule .prime[b-n149vmypwy] {
     stroke: #243a58;
 }
 
-.graticule .tropic[b-8d7p0jac3y] {
+.graticule .tropic[b-n149vmypwy] {
     stroke-dasharray: 4 6;
     opacity: .7;
 }
 
-.graticule .polar[b-8d7p0jac3y] {
+.graticule .polar[b-n149vmypwy] {
     stroke-dasharray: 2 8;
     opacity: .5;
 }
 
-.land path[b-8d7p0jac3y] {
+.land path[b-n149vmypwy] {
     stroke: #24374f;
     stroke-width: 1;
     stroke-linejoin: round;
@@ -1212,7 +1212,7 @@ button:disabled[b-qnp6hitdhv] {
 
 /* ---------------- links ---------------- */
 
-.map-link[b-8d7p0jac3y] {
+.map-link[b-n149vmypwy] {
     fill: none;
     stroke-linecap: round;
     vector-effect: non-scaling-stroke;
@@ -1220,133 +1220,133 @@ button:disabled[b-qnp6hitdhv] {
     transition: opacity .15s, stroke-width .15s;
 }
 
-.map-link.country-continent[b-8d7p0jac3y] {
+.map-link.country-continent[b-n149vmypwy] {
     stroke-width: 1;
     opacity: .09;
 }
 
-.map-link.border[b-8d7p0jac3y] {
+.map-link.border[b-n149vmypwy] {
     stroke: #c9a227;
     stroke-width: 1.15;
     stroke-dasharray: 3 5;
     opacity: .22;
 }
 
-.map-link.city-country[b-8d7p0jac3y] {
+.map-link.city-country[b-n149vmypwy] {
     stroke-width: .8;
     opacity: .12;
 }
 
-.map-link.near[b-8d7p0jac3y] {
-    stroke: #fbbf24;
+.map-link.near[b-n149vmypwy] {
+    stroke: #fbf024;
     stroke-width: 1;
     stroke-dasharray: 2 4;
     opacity: .3;
 }
 
-.map-link.focus[b-8d7p0jac3y] {
+.map-link.focus[b-n149vmypwy] {
     opacity: .9;
     stroke-width: 2;
     stroke-dasharray: none;
 }
 
-.map-link.dim[b-8d7p0jac3y] {
+.map-link.dim[b-n149vmypwy] {
     opacity: .025;
 }
 
 /* ---------------- markers ---------------- */
 
-.marker[b-8d7p0jac3y] {
+.marker[b-n149vmypwy] {
     cursor: pointer;
 }
 
-.marker .hit[b-8d7p0jac3y] {
+.marker .hit[b-n149vmypwy] {
     fill: transparent;
     transition: fill .15s;
 }
 
-.marker:hover .hit[b-8d7p0jac3y] {
+.marker:hover .hit[b-n149vmypwy] {
     fill: rgba(255, 255, 255, .09);
 }
 
-.marker.sel .hit[b-8d7p0jac3y] {
+.marker.sel .hit[b-n149vmypwy] {
     fill: rgba(255, 255, 255, .12);
 }
 
-.marker.dim[b-8d7p0jac3y] {
+.marker.dim[b-n149vmypwy] {
     opacity: .18;
 }
 
-.marker.dim:hover[b-8d7p0jac3y] {
+.marker.dim:hover[b-n149vmypwy] {
     opacity: .55;
 }
 
-.marker.sel .cont-ring[b-8d7p0jac3y],
-.marker.sel .country-dot[b-8d7p0jac3y],
-.marker.sel .city-dot[b-8d7p0jac3y],
-.marker.sel .landmark-diamond[b-8d7p0jac3y] {
+.marker.sel .cont-ring[b-n149vmypwy],
+.marker.sel .country-dot[b-n149vmypwy],
+.marker.sel .city-dot[b-n149vmypwy],
+.marker.sel .landmark-diamond[b-n149vmypwy] {
     filter: drop-shadow(0 0 6px rgba(255, 255, 255, .75));
 }
 
-.cont-ring[b-8d7p0jac3y] {
+.cont-ring[b-n149vmypwy] {
     fill: none;
     stroke: var(--c);
     stroke-width: 1.7;
     vector-effect: non-scaling-stroke;
 }
 
-.cont-glow[b-8d7p0jac3y] {
+.cont-glow[b-n149vmypwy] {
     fill: var(--c);
     opacity: .11;
 }
 
-.country-dot[b-8d7p0jac3y] {
+.country-dot[b-n149vmypwy] {
     fill: rgba(8, 13, 21, .72);
     stroke-width: 1.5;
     vector-effect: non-scaling-stroke;
 }
 
-.marker.sel .country-dot[b-8d7p0jac3y] {
+.marker.sel .country-dot[b-n149vmypwy] {
     fill: var(--c);
     stroke: #ffffff;
 }
 
-.city-dot[b-8d7p0jac3y] {
+.city-dot[b-n149vmypwy] {
     stroke: #060b12;
     stroke-width: 1;
     vector-effect: non-scaling-stroke;
 }
 
-.marker.sel .city-dot[b-8d7p0jac3y] {
+.marker.sel .city-dot[b-n149vmypwy] {
     stroke: #ffffff;
     stroke-width: 1.8;
 }
 
-.capital-ring[b-8d7p0jac3y] {
+.capital-ring[b-n149vmypwy] {
     fill: none;
     stroke: rgba(255, 255, 255, .5);
     stroke-width: 1;
     vector-effect: non-scaling-stroke;
 }
 
-.landmark-diamond[b-8d7p0jac3y] {
+.landmark-diamond[b-n149vmypwy] {
     fill: #fbbf24;
     stroke: #241a04;
     stroke-width: 1;
     vector-effect: non-scaling-stroke;
 }
 
-.marker.sel .landmark-diamond[b-8d7p0jac3y] {
+.marker.sel .landmark-diamond[b-n149vmypwy] {
     stroke: #ffffff;
 }
 
 /* ---------------- labels ---------------- */
 
-.label-wrap[b-8d7p0jac3y] {
+.label-wrap[b-n149vmypwy] {
     pointer-events: none;
 }
 
-.marker text[b-8d7p0jac3y] {
+.marker text[b-n149vmypwy] {
     pointer-events: none;
     paint-order: stroke;
     stroke: #060b12;
@@ -1354,7 +1354,7 @@ button:disabled[b-qnp6hitdhv] {
     stroke-linejoin: round;
 }
 
-.continent-label[b-8d7p0jac3y] {
+.continent-label[b-n149vmypwy] {
     font-size: 15px;
     font-weight: 800;
     letter-spacing: .24em;
@@ -1363,11 +1363,11 @@ button:disabled[b-qnp6hitdhv] {
     text-transform: uppercase;
 }
 
-.marker.sel .continent-label[b-8d7p0jac3y] {
+.marker.sel .continent-label[b-n149vmypwy] {
     fill-opacity: 1;
 }
 
-.country-label[b-8d7p0jac3y] {
+.country-label[b-n149vmypwy] {
     font-size: 9px;
     font-weight: 800;
     letter-spacing: .1em;
@@ -1377,13 +1377,13 @@ button:disabled[b-qnp6hitdhv] {
     transition: opacity .12s;
 }
 
-.country-label.on[b-8d7p0jac3y],
-.marker:hover .country-label[b-8d7p0jac3y],
-.marker.sel .country-label[b-8d7p0jac3y] {
+.country-label.on[b-n149vmypwy],
+.marker:hover .country-label[b-n149vmypwy],
+.marker.sel .country-label[b-n149vmypwy] {
     opacity: .9;
 }
 
-.city-label[b-8d7p0jac3y] {
+.city-label[b-n149vmypwy] {
     font-size: 10px;
     font-weight: 600;
     text-anchor: middle;
@@ -1392,13 +1392,13 @@ button:disabled[b-qnp6hitdhv] {
     transition: opacity .12s;
 }
 
-.city-label.on[b-8d7p0jac3y],
-.marker:hover .city-label[b-8d7p0jac3y],
-.marker.sel .city-label[b-8d7p0jac3y] {
+.city-label.on[b-n149vmypwy],
+.marker:hover .city-label[b-n149vmypwy],
+.marker.sel .city-label[b-n149vmypwy] {
     opacity: .95;
 }
 
-.landmark-label[b-8d7p0jac3y] {
+.landmark-label[b-n149vmypwy] {
     font-size: 9.5px;
     font-weight: 600;
     text-anchor: middle;
@@ -1407,15 +1407,15 @@ button:disabled[b-qnp6hitdhv] {
     transition: opacity .12s;
 }
 
-.landmark-label.on[b-8d7p0jac3y],
-.marker:hover .landmark-label[b-8d7p0jac3y],
-.marker.sel .landmark-label[b-8d7p0jac3y] {
+.landmark-label.on[b-n149vmypwy],
+.marker:hover .landmark-label[b-n149vmypwy],
+.marker.sel .landmark-label[b-n149vmypwy] {
     opacity: .95;
 }
 
 /* ---------------- overlays ---------------- */
 
-.map-controls[b-8d7p0jac3y] {
+.map-controls[b-n149vmypwy] {
     position: absolute;
     top: 14px;
     left: 14px;
@@ -1430,7 +1430,7 @@ button:disabled[b-qnp6hitdhv] {
     box-shadow: 0 10px 26px rgba(0, 0, 0, .32);
 }
 
-.zoom-readout[b-8d7p0jac3y] {
+.zoom-readout[b-n149vmypwy] {
     font-size: 11px;
     color: #9db0c9;
     min-width: 38px;
@@ -1439,7 +1439,7 @@ button:disabled[b-qnp6hitdhv] {
     padding-right: 2px;
 }
 
-.map-controls .ghost[b-8d7p0jac3y] {
+.map-controls .ghost[b-n149vmypwy] {
     background: #0f1724;
     border: 1px solid #26344b;
     color: #a9b9d0;
@@ -1452,13 +1452,13 @@ button:disabled[b-qnp6hitdhv] {
     transition: all .14s;
 }
 
-.map-controls .ghost:hover[b-8d7p0jac3y] {
+.map-controls .ghost:hover[b-n149vmypwy] {
     background: #162133;
     color: #e3ecfa;
     border-color: #37496a;
 }
 
-.continent-jumps[b-8d7p0jac3y] {
+.continent-jumps[b-n149vmypwy] {
     position: absolute;
     left: 14px;
     bottom: 14px;
@@ -1468,7 +1468,7 @@ button:disabled[b-qnp6hitdhv] {
     max-width: calc(100% - 28px);
 }
 
-.jump[b-8d7p0jac3y] {
+.jump[b-n149vmypwy] {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -1485,13 +1485,13 @@ button:disabled[b-qnp6hitdhv] {
     transition: all .14s;
 }
 
-.jump:hover[b-8d7p0jac3y] {
+.jump:hover[b-n149vmypwy] {
     color: #fff;
     border-color: color-mix(in srgb, var(--c) 55%, #22324a);
     background: color-mix(in srgb, var(--c) 10%, rgba(8, 13, 22, .82));
 }
 
-.jump .dot[b-8d7p0jac3y] {
+.jump .dot[b-n149vmypwy] {
     width: 6px;
     height: 6px;
     border-radius: 50%;
@@ -1500,7 +1500,7 @@ button:disabled[b-qnp6hitdhv] {
     flex: none;
 }
 
-.map-hint[b-8d7p0jac3y] {
+.map-hint[b-n149vmypwy] {
     position: absolute;
     right: 14px;
     bottom: 14px;
@@ -1514,11 +1514,11 @@ button:disabled[b-qnp6hitdhv] {
 }
 
 @media (max-width: 760px) {
-    .map-hint[b-8d7p0jac3y] {
+    .map-hint[b-n149vmypwy] {
         display: none;
     }
 
-    .jump[b-8d7p0jac3y] {
+    .jump[b-n149vmypwy] {
         font-size: 9.5px;
         padding: 4px 8px;
     }

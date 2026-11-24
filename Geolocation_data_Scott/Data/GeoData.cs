@@ -491,7 +491,7 @@ public sealed class GeoRepository
 /// </summary>
 public static class GeoSeed
 {
-    public static readonly IReadOnlyList<Continent> Continents =
+    private static readonly IReadOnlyList<Continent> RawContinents =
     [
         new("EUR", "Europe", 52.0, 15.0),
         new("ASI", "Asia", 34.0, 95.0),
@@ -983,24 +983,50 @@ public static class GeoSeed
 
     public const int NearestCount = 3;
 
-    public static readonly IReadOnlyList<Country> Countries = RawCountries
+    /// <summary>Only this continent is seeded. Set to null for the whole world.</summary>
+    public const string? OnlyContinent = "EUR";
+
+    /// <summary>Only the biggest cities (by population) of each country are seeded.</summary>
+    public const int CitiesPerCountry = 3;
+
+    public static readonly IReadOnlyList<Continent> Continents = RawContinents
+        .Where(c => OnlyContinent is null || c.Code == OnlyContinent)
+        .ToList();
+
+    private static readonly IReadOnlyList<Country> ScopeCountries = RawCountries
+        .Where(c => OnlyContinent is null || c.ContinentCode == OnlyContinent)
+        .ToList();
+
+    private static readonly IReadOnlyList<City> ScopeCities = ScopeCountries
+        .SelectMany(country => RawCities
+            .Where(city => city.CountryIso2 == country.Iso2)
+            .OrderByDescending(city => city.Population)
+            .Take(CitiesPerCountry))
+        .ToList();
+
+    private static readonly IReadOnlyList<Landmark> ScopeLandmarks = RawLandmarks
+        .Where(landmark => RawCities.Any(city =>
+            city.Id == landmark.CityId && ScopeCountries.Any(country => country.Iso2 == city.CountryIso2)))
+        .ToList();
+
+    public static readonly IReadOnlyList<Country> Countries = ScopeCountries
         .Select(country => country with
         {
             ContinentCode = Closest(Continents, country.Lat, country.Lon, c => c.Lat, c => c.Lon).Code
         })
         .ToList();
 
-    public static readonly IReadOnlyList<City> Cities = RawCities
+    public static readonly IReadOnlyList<City> Cities = ScopeCities
         .Select(city => city with
         {
-            CountryIso2 = Closest(RawCountries, city.Lat, city.Lon, c => c.Lat, c => c.Lon).Iso2
+            CountryIso2 = Closest(ScopeCountries, city.Lat, city.Lon, c => c.Lat, c => c.Lon).Iso2
         })
         .ToList();
 
-    public static readonly IReadOnlyList<Landmark> Landmarks = RawLandmarks
+    public static readonly IReadOnlyList<Landmark> Landmarks = ScopeLandmarks
         .Select(landmark => landmark with
         {
-            CityId = Closest(RawCities, landmark.Lat, landmark.Lon, c => c.Lat, c => c.Lon).Id
+            CityId = Closest(ScopeCities, landmark.Lat, landmark.Lon, c => c.Lat, c => c.Lon).Id
         })
         .ToList();
 

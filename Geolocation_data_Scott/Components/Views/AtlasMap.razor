@@ -61,6 +61,7 @@
                           x1="@Fmt.N(ProjectX(country.Lon))" y1="@Fmt.N(ProjectY(country.Lat))"
                           x2="@Fmt.N(ProjectX(continent.Lon))" y2="@Fmt.N(ProjectY(continent.Lat))"
                           stroke="@GeoPalette.ForContinent(country.ContinentCode)" />
+                    <text>@KmLabel((ProjectX(country.Lon) + ProjectX(continent.Lon)) / 2, (ProjectY(country.Lat) + ProjectY(continent.Lat)) / 2, KmText(country.Lat, country.Lon, continent.Lat, continent.Lon))</text>
                 }
             }
 
@@ -84,8 +85,12 @@
                         continue;
                     }
 
+                    var mid = ArcMid(ProjectX(left.Value.Lon), ProjectY(left.Value.Lat), ProjectX(right.Value.Lon), ProjectY(right.Value.Lat));
+
                     <path class="@LinkCss("border", a, b)"
-                          d="@Arc(ProjectX(left.Value.Lon), ProjectY(left.Value.Lat), ProjectX(right.Value.Lon), ProjectY(right.Value.Lat))" />
+                          d="@Arc(ProjectX(left.Value.Lon), ProjectY(left.Value.Lat), ProjectX(right.Value.Lon), ProjectY(right.Value.Lat))"
+                          fill="none" stroke="#c9a227" stroke-opacity=".35" />
+                    <text>@KmLabel(mid.X, mid.Y, KmText(left.Value.Lat, left.Value.Lon, right.Value.Lat, right.Value.Lon))</text>
                 }
             }
 
@@ -109,6 +114,7 @@
                           x1="@Fmt.N(ProjectX(city.Lon))" y1="@Fmt.N(ProjectY(city.Lat))"
                           x2="@Fmt.N(ProjectX(country.Lon))" y2="@Fmt.N(ProjectY(country.Lat))"
                           stroke="@GeoPalette.ForContinent(country.ContinentCode)" />
+                    <text>@KmLabel((ProjectX(city.Lon) + ProjectX(country.Lon)) / 2, (ProjectY(city.Lat) + ProjectY(country.Lat)) / 2, KmText(city.Lat, city.Lon, country.Lat, country.Lon))</text>
                 }
             }
 
@@ -130,6 +136,23 @@
                     <line class="@LinkCss("near", GeoIds.Landmark(landmark.Id), GeoIds.City(city.Id))"
                           x1="@Fmt.N(ProjectX(landmark.Lon))" y1="@Fmt.N(ProjectY(landmark.Lat))"
                           x2="@Fmt.N(ProjectX(city.Lon))" y2="@Fmt.N(ProjectY(city.Lat))" />
+                    <text>@KmLabel((ProjectX(landmark.Lon) + ProjectX(city.Lon)) / 2, (ProjectY(landmark.Lat) + ProjectY(city.Lat)) / 2, KmText(landmark.Lat, landmark.Lon, city.Lat, city.Lon))</text>
+                }
+            }
+
+            @* ------------------------------------------------------------ route *@
+            @if (Route is { Count: > 1 })
+            {
+                @for (var i = 0; i < Route.Count - 1; i++)
+                {
+                    var legFrom = Route[i];
+                    var legTo = Route[i + 1];
+
+                    <line x1="@Fmt.N(ProjectX(legFrom.Lon))" y1="@Fmt.N(ProjectY(legFrom.Lat))"
+                          x2="@Fmt.N(ProjectX(legTo.Lon))" y2="@Fmt.N(ProjectY(legTo.Lat))"
+                          stroke="#34d399" stroke-width="@Fmt.N(3.5 * ScreenScale)" stroke-linecap="round"
+                          pointer-events="none" />
+                    <text>@KmLabel((ProjectX(legFrom.Lon) + ProjectX(legTo.Lon)) / 2, (ProjectY(legFrom.Lat) + ProjectY(legTo.Lat)) / 2, KmText(legFrom.Lat, legFrom.Lon, legTo.Lat, legTo.Lon))</text>
                 }
             }
 
@@ -183,6 +206,9 @@
     [Parameter] public string? SelectedId { get; set; }
 
     [Parameter] public EventCallback<string?> OnSelect { get; set; }
+
+    /// <summary>Cities of the route to highlight, in order (null or fewer than two = none).</summary>
+    [Parameter] public IReadOnlyList<City>? Route { get; set; }
 
     [Parameter] public bool ShowNearest { get; set; } = true;
 
@@ -701,6 +727,30 @@
     }
 
     /// <summary>A slightly bowed line reads better than a straight centroid-to-centroid chord.</summary>
+    /// <summary>Middle of the curve that <see cref="Arc"/> draws (a quadratic curve at t = 0.5).</summary>
+    private static (double X, double Y) ArcMid(double x1, double y1, double x2, double y2)
+    {
+        var dx = x2 - x1;
+        var dy = y2 - y1;
+        var length = Math.Sqrt(dx * dx + dy * dy);
+        if (length < 0.001)
+        {
+            return (x1, y1);
+        }
+
+        var bend = Math.Min(64, length * 0.13);
+        return ((x1 + x2) / 2 + (-dy / length) * bend / 2, (y1 + y2) / 2 + (dx / length) * bend / 2);
+    }
+
+    private static string KmText(double lat1, double lon1, double lat2, double lon2) =>
+        Math.Round(GeoMath.DistanceKm(lat1, lon1, lat2, lon2))
+            .ToString("#,##0", System.Globalization.CultureInfo.InvariantCulture) + " km";
+
+    /// <summary>Distance label on a link. Inline attributes so it stays readable even without the scoped CSS.</summary>
+    private RenderFragment KmLabel(double x, double y, string text) => @<g transform="translate(@Fmt.N(x) @Fmt.N(y)) scale(@LabelScale)" pointer-events="none">
+        <text text-anchor="middle" font-size="10" fill="#e8eef8" stroke="#080b12" stroke-width="3" stroke-linejoin="round" paint-order="stroke">@text</text>
+    </g>;
+
     private static string Arc(double x1, double y1, double x2, double y2)
     {
         var dx = x2 - x1;

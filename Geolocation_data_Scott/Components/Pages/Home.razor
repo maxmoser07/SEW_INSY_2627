@@ -62,6 +62,8 @@
         }
         else
         {
+            var route = CurrentRoute;
+
             <div class="row">
                 <input type="search" placeholder="Search city, country, landmark…"
                        value="@_search" @oninput="OnSearchInput" />
@@ -104,6 +106,38 @@
             </div>
 
             <div class="row">
+                <span>Route:</span>
+                <select value="@_routeFrom" @onchange="SetRouteFrom">
+                    <option value="">From city…</option>
+                    @foreach (var city in _repo.Cities.OrderBy(c => c.Name, StringComparer.CurrentCulture))
+                    {
+                        <option value="@city.Id">@city.Name</option>
+                    }
+                </select>
+                <select value="@_routeTo" @onchange="SetRouteTo">
+                    <option value="">To city…</option>
+                    @foreach (var city in _repo.Cities.OrderBy(c => c.Name, StringComparer.CurrentCulture))
+                    {
+                        <option value="@city.Id">@city.Name</option>
+                    }
+                </select>
+                <button @onclick="ClearRoute">Clear route</button>
+            </div>
+
+            @if (route is not null)
+            {
+                <p>
+                    <strong>@string.Join(" → ", route.Cities.Select(c => c.Name))</strong>
+                    · @Math.Round(route.Km).ToString("#,##0", System.Globalization.CultureInfo.InvariantCulture) km
+                    · @(route.Cities.Count - 1) @(route.Cities.Count == 2 ? "hop" : "hops")
+                </p>
+            }
+            else if (_routeFrom is not null && _routeTo is not null)
+            {
+                <p class="notice">No route between these two cities.</p>
+            }
+
+            <div class="row">
                 <button class="@(_view == ViewMode.Map ? "active" : null)"
                         @onclick="() => SetViewAsync(ViewMode.Map)">Map</button>
                 <button class="@(_view == ViewMode.Network ? "active" : null)"
@@ -127,6 +161,7 @@
                     @if (_view == ViewMode.Map)
                     {
                         <AtlasMap Repository="_repo"
+                                  Route="route?.Cities"
                                   VisibleIds="_visibleIds"
                                   SelectedId="_selectedId"
                                   OnSelect="SelectAsync"
@@ -173,6 +208,27 @@
 </main>
 
 @code {
+    private string? _routeFrom;
+    private string? _routeTo;
+
+    private GeoRoute? CurrentRoute =>
+        _repo is not null && _routeFrom is not null && _routeTo is not null
+            ? GeoRouting.ShortestRoute(_repo, _routeFrom, _routeTo)
+            : null;
+
+    private void SetRouteFrom(ChangeEventArgs e) => _routeFrom = NullIfEmpty(e.Value);
+
+    private void SetRouteTo(ChangeEventArgs e) => _routeTo = NullIfEmpty(e.Value);
+
+    private void ClearRoute()
+    {
+        _routeFrom = null;
+        _routeTo = null;
+    }
+
+    private static string? NullIfEmpty(object? value) =>
+        string.IsNullOrEmpty(value?.ToString()) ? null : value!.ToString();
+
     private enum ViewMode
     {
         Map,

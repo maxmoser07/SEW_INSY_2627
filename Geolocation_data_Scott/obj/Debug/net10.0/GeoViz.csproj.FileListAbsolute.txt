@@ -84,8 +84,6 @@ C:/Users/Tobias/Desktop/SCHOOL/5CHIT/SEW_INSY/MACHO5C/INSY/Geolocation_data_Scot
 /home/max/School/5CHIT/SEWINSY/Geolocation_data_Scott/obj/Debug/net10.0/compressed/gfcvesw632-{0}-abdmv1u4y3-abdmv1u4y3.gz
 /home/max/School/5CHIT/SEWINSY/Geolocation_data_Scott/obj/Debug/net10.0/compressed/pwv3shvu4h-{0}-cd06xom9c5-cd06xom9c5.gz
 /home/max/School/5CHIT/SEWINSY/Geolocation_data_Scott/obj/Debug/net10.0/compressed/2ztvv1gu1i-{0}-vmftroxvhh-vmftroxvhh.gz
-/home/max/School/5CHIT/SEWINSY/Geolocation_data_Scott/obj/Debug/net10.0/compressed/b49zcsd1i4-{0}-4pomg09mrz-4pomg09mrz.gz
-/home/max/School/5CHIT/SEWINSY/Geolocation_data_Scott/obj/Debug/net10.0/compressed/zlmtgrep5v-{0}-4pomg09mrz-4pomg09mrz.gz
 /home/max/School/5CHIT/SEWINSY/Geolocation_data_Scott/obj/Debug/net10.0/staticwebassets.build.json
 /home/max/School/5CHIT/SEWINSY/Geolocation_data_Scott/obj/Debug/net10.0/staticwebassets.build.json.cache
 /home/max/School/5CHIT/SEWINSY/Geolocation_data_Scott/obj/Debug/net10.0/staticwebassets.development.json
@@ -97,4 +95,6 @@ C:/Users/Tobias/Desktop/SCHOOL/5CHIT/SEW_INSY/MACHO5C/INSY/Geolocation_data_Scot
 /home/max/School/5CHIT/SEWINSY/Geolocation_data_Scott/obj/Debug/net10.0/GeoViz.pdb
 /home/max/School/5CHIT/SEWINSY/Geolocation_data_Scott/obj/Debug/net10.0/GeoViz.genruntimeconfig.cache
 /home/max/School/5CHIT/SEWINSY/Geolocation_data_Scott/obj/Debug/net10.0/ref/GeoViz.dll
-/home/max/School/5CHIT/SEWINSY/Geolocation_data_Scott/obj/Debug/net10.0/compressed/ldqoffeyno-{0}-jhrogv6mbd-jhrogv6mbd.gz
+/home/max/School/5CHIT/SEWINSY/Geolocation_data_Scott/obj/Debug/net10.0/compressed/ldqoffeyno-{0}-4e5g3kziba-4e5g3kziba.gz
+/home/max/School/5CHIT/SEWINSY/Geolocation_data_Scott/obj/Debug/net10.0/compressed/b49zcsd1i4-{0}-8e2ust50w6-8e2ust50w6.gz
+/home/max/School/5CHIT/SEWINSY/Geolocation_data_Scott/obj/Debug/net10.0/compressed/zlmtgrep5v-{0}-8e2ust50w6-8e2ust50w6.gz
