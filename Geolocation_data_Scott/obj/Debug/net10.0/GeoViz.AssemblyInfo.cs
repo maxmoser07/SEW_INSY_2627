@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("GeoViz")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+583f5288f5d3494e3e6b09ea69273e7a35dba5f3")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+64256b92c140f2bb5f7f13b73b0be584bcdceb4b")]
 [assembly: System.Reflection.AssemblyProductAttribute("GeoViz")]
 [assembly: System.Reflection.AssemblyTitleAttribute("GeoViz")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
